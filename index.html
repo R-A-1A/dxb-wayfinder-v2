@@ -749,7 +749,15 @@ function normalizeLocationOrder(){
  data.sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
  data.forEach((g,i)=>g.sortOrder=i);
 }
-function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}
+function save(){
+ localStorage.setItem(KEY,JSON.stringify(data));
+ render();
+ if(window.dxbCloudSaveLocations){
+  window.dxbCloudSaveLocations(data).then(ok=>{
+   if(!ok) console.warn('Cloud location save was not completed.');
+  }).catch(err=>console.error('Cloud location save failed',err));
+ }
+}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function areaName(a){return a==='A'?'Concourse A':a==='B'?'Concourse B':a==='C'?'Concourse C':a}
 function normalizeSearch(s){
@@ -1152,11 +1160,18 @@ function adminLogin(){
  <button class="btn primary" onclick="checkAdmin()">Enter Admin</button>
  </div>`;
 }
-function checkAdmin(){
+async function checkAdmin(){
  const u=document.getElementById('adminUser').value.trim().toLowerCase();
  const pw=document.getElementById('pw').value;
  const ok=getAdmins().find(a=>a.username.toLowerCase()===u && a.password===pw);
  if(!ok){alert('Incorrect username or password');return}
+ if(window.dxbFirebaseSignIn){
+  const cloudOk=await window.dxbFirebaseSignIn(u,pw);
+  if(!cloudOk){
+   alert('The local admin account is valid, but Firebase authorization is not set up for this account yet. Create the matching Firebase Authentication account first.');
+   return;
+  }
+ }
  window.currentAdmin=ok;
  try{sessionStorage.setItem('dxb_wayfinder_admin_session',ok.id)}catch(e){}
  showAdmin();
@@ -1635,14 +1650,74 @@ render();
 updateEmergencyBanner();
 try{restoreAdminSession()}catch(e){}
 restoreViewState();
+if(window.dxbCloudReady){
+ window.dxbCloudReady.then(async()=>{
+  try{
+   const cloudData=await window.dxbCloudGetLocations();
+   if(Array.isArray(cloudData)&&cloudData.length){
+    data=cloudData;
+    normalizeLocationOrder();
+    localStorage.setItem(KEY,JSON.stringify(data));
+    render();
+   }
+  }catch(e){console.warn('Cloud location load skipped',e)}
+ });
+}
 
 
 </script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
 const firebaseConfig={authDomain:"dxb-staff-wayfinder.firebaseapp.com",projectId:"dxb-staff-wayfinder",storageBucket:"dxb-staff-wayfinder.firebasestorage.app",messagingSenderId:"975115625194",appId:"1:975115625194:web:bd1a0f1c2a1522555c2d93"};
-window.dxbFirebaseAuth=getAuth(initializeApp(firebaseConfig));
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+const db=getFirestore(app);
+window.dxbFirebaseAuth=auth;
+
+const LOCATION_DOC=doc(db,'wayfinder','locations');
+window.dxbCloudReady=Promise.resolve();
+
+window.dxbFirebaseSignIn=async(username,password)=>{
+ try{
+  await signInWithEmailAndPassword(auth,username+'@dxb-wayfinder.local',password);
+  return true;
+ }catch(e){
+  console.error('Firebase sign-in failed',e);
+  return false;
+ }
+};
+
+window.dxbCloudGetLocations=async()=>{
+ try{
+  const snap=await getDoc(LOCATION_DOC);
+  return snap.exists()?snap.data().locations:null;
+ }catch(e){
+  console.error('Firestore location read failed',e);
+  return null;
+ }
+};
+
+window.dxbCloudSaveLocations=async(locations)=>{
+ try{
+  if(!auth.currentUser){
+   console.warn('No Firebase admin session. Cloud save skipped.');
+   return false;
+  }
+  await setDoc(LOCATION_DOC,{
+   locations,
+   updatedAt:new Date().toISOString(),
+   updatedBy:auth.currentUser.uid
+  });
+  return true;
+ }catch(e){
+  console.error('Firestore location write failed',e);
+  alert('Cloud save failed. The change is only local until Firebase authorization and Firestore are configured.');
+  return false;
+ }
+};
 </script>
 
 
