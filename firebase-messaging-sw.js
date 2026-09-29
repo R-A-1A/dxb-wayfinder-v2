@@ -33,3 +33,9 @@ self.addEventListener('notificationclick', event => {
     return clients.openWindow(url);
   }));
 });
+
+// Network-first fetch handler for PWA installability.
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  event.respondWith(fetch(event.request));
+});
