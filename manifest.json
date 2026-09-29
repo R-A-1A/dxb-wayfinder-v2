@@ -1,24 +1,14 @@
 {
-  "name": "DXB Staff Wayfinder",
-  "short_name": "DXB Wayfinder",
-  "start_url": "/dxb-wayfinder-v2/",
-  "scope": "/dxb-wayfinder-v2/",
-  "display": "standalone",
-  "background_color": "#F6F7FB",
-  "theme_color": "#132B71",
-  "description": "DXB Staff Wayfinder for airport staff search and passenger handoff.",
-  "icons": [
-    {
-      "src": "icon.svg",
-      "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon.svg",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+  "name":"DXB Staff Wayfinder",
+  "short_name":"DXB Wayfinder",
+  "start_url":"/dxb-wayfinder-v2/",
+  "scope":"/dxb-wayfinder-v2/",
+  "display":"standalone",
+  "background_color":"#F6F7FB",
+  "theme_color":"#132B71",
+  "description":"DXB Staff Wayfinder for airport staff search and passenger handoff.",
+  "icons":[
+    {"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
   ]
 }
