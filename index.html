@@ -574,26 +574,20 @@ body.modal-open .selected,body.utility-open .selected{display:none!important}
 
 </head>
 <body>
-<div id="authGate" aria-hidden="false">
-<div class="auth-card staff-auth-card">
+<div id="authGate" aria-hidden="false"><div class="auth-card staff-auth-card">
 <div class="auth-brand">Dubai International Airport</div>
 <div class="auth-title">DXB Staff Wayfinder</div>
-<div class="auth-sub">Select your staff role and enter the site access code.</div>
+<div class="auth-sub">Enter your user role to continue.</div>
 <div class="staff-role-grid" role="group" aria-label="Staff role">
 <button type="button" class="staff-role-btn active" data-role="GXA">GXA</button>
 <button type="button" class="staff-role-btn" data-role="STL">STL</button>
-<button type="button" class="staff-role-btn" data-role="TL">TL</button>
-</div>
-<label class="staff-auth-label">Access code<input id="staffAccessCode" type="password" inputmode="numeric" placeholder="Enter access code"></label>
-<select id="staffRole" aria-label="Selected staff role" hidden><option>GXA</option><option>STL</option><option>TL</option></select>
-<div id="staffLocationStatus" class="auth-location-status" role="status"></div>
-<div id="staffAuthError" class="auth-error" role="alert"></div>
-<div id="staffAuthAttempts" class="auth-attempts"></div>
-<button id="staffAuthSubmit" class="auth-submit" type="button">Enter Wayfinder</button>
+<button type="button" class="staff-role-btn" data-role="TL">TL</button></div>
+<label class="staff-auth-label">Access code<input id="staffAccessCode" type="password" inputmode="numeric" placeholder="DXB2026"></label>
+<select id="staffRole" hidden><option>GXA</option><option>STL</option><option>TL</option></select>
+<div id="staffLocationStatus" class="auth-location-status"></div><div id="staffAuthError" class="auth-error"></div><div id="staffAuthAttempts" class="auth-attempts"></div>
+<button id="staffAuthSubmit" class="auth-submit" type="button">Continue</button>
 <button id="managementLoginOption" class="auth-management" type="button">Owner / Admin login</button>
-<div class="auth-foot">Staff access uses the site code. Management accounts are handled separately.</div>
-</div></div>
-<div id="startupOverlay" class="startup-overlay" aria-hidden="true">
+<div class="auth-foot">Staff access is separate from management accounts.</div></div></div><div id="startupOverlay" class="startup-overlay" aria-hidden="true">
   <div class="startup-sky">
     <div class="startup-line startup-line-a"></div>
     <div class="startup-line startup-line-b"></div>
