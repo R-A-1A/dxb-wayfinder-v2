@@ -1179,22 +1179,109 @@ function showAdmin(section='home', editId=null){
     body.innerHTML=head('Emergency Queue','Police, ambulance and missing-person alerts')+`<section class="admin-card"><div class="admin-card-head"><span class="admin-icon">🚨</span><div><b>Operational Alerts</b><small>Targeted to Admin, TL, STL and Owner</small></div></div><div class="admin-card-body"><div class="emergency-list">${alerts.length?alerts.map(a=>`<div class="emergency-list-item"><b>${esc(a.type)} • ${esc(a.gate)} • ${esc(areaName(a.area))}</b><small>${a.name?esc(a.name)+' • ':''}${a.gender?esc(a.gender)+' • ':''}${a.age?esc(a.age)+' years • ':''}${esc(a.details||'No additional details')}<br>${new Date(a.at).toLocaleString()}${a.senderName?' • From: '+esc(a.senderName):''} • Status: ${esc(a.status||'active')}</small>${a.actions?.length?`<div class="action-log">${a.actions.map(x=>`<span>${esc(x.action.toUpperCase())} • ${esc(x.name)} • ${esc(new Date(x.at).toLocaleString())}</span>`).join('')}</div>`:''}<div class="admin-alert-targets">${(a.notifyRoles||['Admin','TL','STL','Owner']).map(r=>`<span>${esc(r)}</span>`).join('')}</div>${a.status==='active'?`<button class="mini" onclick="stopEmergency('${a.id}')">■ Stop Emergency</button>`:''}</div>`).join(''):'<div class="empty">No emergency alerts.</div>'}</div></div></section>`; return;
   }
   if(section==='locations'){
-    const g=editId?data.find(x=>x.id===editId):null,active=data.filter(x=>x.active),inactive=data.filter(x=>!x.active);
-    body.innerHTML=head('Location Management','Gates, facilities and activation')+
-      (g?`<section class="admin-card"><div class="admin-card-head"><span class="admin-icon">✎</span><div><b>Edit Location</b><small>${esc(g.name)} • ${esc(areaName(g.area))}</small></div></div><div class="admin-card-body"><div class="form">
-        <label>Gate / Location<input id="aName" value="${esc(g.name)}"></label>
-        <label>Area<select id="aArea"><option value="A">Concourse A</option><option value="B">Concourse B</option><option value="C">Concourse C</option><option value="Landside">Landside</option><option value="Arrivals">Arrivals</option></select></label>
-        <label>Exact destination URL<input id="aUrl" value="${esc(g.pointerUrl||'')}"></label>
-        <label>Facilities<textarea id="aFac">${esc(g.facilities.filter(f=>f.active).map(f=>f.name).join('\\n'))}</textarea></label>
-        <button class="btn primary" onclick="saveGate('${g.id}')">Save changes</button><button class="btn secondary" onclick="showAdmin('locations')">Cancel</button>
-      </div></div></section>`:'')+
-      (!g?`<section class="admin-card"><div class="admin-card-head"><span class="admin-icon">＋</span><div><b>Add Location</b><small>Protected action</small></div></div><div class="admin-card-body"><div class="form">
-        <label>Gate / Location<input id="aName" placeholder="e.g. A01"></label><label>Area<select id="aArea"><option value="A">Concourse A</option><option value="B">Concourse B</option><option value="C">Concourse C</option><option value="Landside">Landside</option><option value="Arrivals">Arrivals</option></select></label><label>Exact destination URL<input id="aUrl"></label><label>Facilities<textarea id="aFac" placeholder="One facility per line"></textarea></label><button class="btn primary" onclick="saveGate('')">Create Location</button>
-      </div></div></section>`:'')+
-      `<section class="admin-card"><div class="admin-card-head"><span class="admin-icon">⌖</span><div><b>Active Locations</b><small>${active.length} active</small></div></div><div class="admin-card-body">${active.map(x=>`<div class="adminitem"><div class="adminrow"><b>${esc(x.name)}</b><span class="status active">ACTIVE</span></div><div class="small">${esc(areaName(x.area))}</div><div class="useractions"><button class="mini" onclick="showAdmin('locations','${x.id}')">Edit</button><button class="mini" onclick="toggleGate('${x.id}')">Deactivate</button></div></div>`).join('')||'<div class="empty">No active locations.</div>'}</div></section>
-      <section class="admin-card"><div class="admin-card-head"><span class="admin-icon">⛔</span><div><b>Deactivated Gates</b><small>${inactive.length} inactive</small></div></div><div class="admin-card-body">${inactive.map(x=>`<div class="adminitem"><div class="adminrow"><b>${esc(x.name)}</b><span class="status inactive">DEACTIVATED</span></div><div class="small">${esc(areaName(x.area))}</div><button class="mini" onclick="toggleGate('${x.id}')">Reactivate</button></div>`).join('')||'<div class="empty">No deactivated gates.</div>'}</div></section>`;
-    if(g){const a=document.getElementById('aArea');if(a)a.value=g.area}
+    const active=data.filter(x=>x.active), inactive=data.filter(x=>!x.active);
+    body.innerHTML=head('Location Management','Search, filter and edit gates without losing your place')+
+      `<section class="admin-card">
+        <div class="admin-card-head"><span class="admin-icon">⌖</span><div><b>Find a Gate</b><small>Search directly or filter by concourse</small></div></div>
+        <div class="admin-card-body">
+          <div class="form">
+            <label>Search gate number
+              <input id="locationSearch" type="search" placeholder="e.g. A01, B12 or C24" autocomplete="off">
+            </label>
+          </div>
+          <div id="locationAreaFilters" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px">
+            <button type="button" class="mini location-area-filter active" data-area="ALL">All</button>
+            <button type="button" class="mini location-area-filter" data-area="A">Concourse A</button>
+            <button type="button" class="mini location-area-filter" data-area="B">Concourse B</button>
+            <button type="button" class="mini location-area-filter" data-area="C">Concourse C</button>
+            <button type="button" class="mini location-area-filter" data-area="Landside">Landside / Departure</button>
+            <button type="button" class="mini location-area-filter" data-area="Arrivals">Arrivals</button>
+          </div>
+          <div id="locationResultCount" class="small" style="margin:8px 0 2px"></div>
+          <div id="locationActiveList"></div>
+        </div>
+      </section>
+      <section class="admin-card">
+        <div class="admin-card-head"><span class="admin-icon">＋</span><div><b>Add Location</b><small>Protected action</small></div></div>
+        <div class="admin-card-body">
+          <div class="form">
+            <label>Gate / Location<input id="aName" placeholder="e.g. A01"></label>
+            <label>Area<select id="aArea"><option value="A">Concourse A</option><option value="B">Concourse B</option><option value="C">Concourse C</option><option value="Landside">Landside / Departure</option><option value="Arrivals">Arrivals</option></select></label>
+            <label>Exact destination URL<input id="aUrl"></label>
+            <label>Facilities<textarea id="aFac" placeholder="One facility per line"></textarea></label>
+            <button class="btn primary" onclick="saveGate('')">Create Location</button>
+          </div>
+        </div>
+      </section>
+      <section class="admin-card">
+        <div class="admin-card-head"><span class="admin-icon">⛔</span><div><b>Deactivated Gates</b><small id="locationInactiveCount"></small></div></div>
+        <div class="admin-card-body" id="locationInactiveList"></div>
+      </section>`;
+    const search=document.getElementById('locationSearch');
+    const areaButtons=[...document.querySelectorAll('.location-area-filter')];
+    let locationArea='ALL';
+    function renderLocationLists(){
+      const q=normalizeSearch(search?.value||'');
+      const filtered=active.filter(x=>(locationArea==='ALL'||x.area===locationArea)&&(!q||searchScore(q,x.name)>0||normalizeSearch(x.name).includes(q)));
+      const list=document.getElementById('locationActiveList');
+      const count=document.getElementById('locationResultCount');
+      if(count) count.textContent=filtered.length+' active location'+(filtered.length===1?'':'s')+' shown';
+      if(list) list.innerHTML=filtered.map(x=>`<div class="adminitem">
+        <div class="adminrow"><b>${esc(x.name)}</b><span class="status active">ACTIVE</span></div>
+        <div class="small">${esc(areaName(x.area))}</div>
+        <div class="useractions">
+          <button class="mini" type="button" onclick="openLocationEditor('${x.id}')">Edit</button>
+          <button class="mini" type="button" onclick="toggleGate('${x.id}')">Deactivate</button>
+        </div>
+      </div>`).join('')||'<div class="empty">No matching active locations.</div>';
+      const il=document.getElementById('locationInactiveList');
+      if(il) il.innerHTML=inactive.map(x=>`<div class="adminitem">
+        <div class="adminrow"><b>${esc(x.name)}</b><span class="status inactive">DEACTIVATED</span></div>
+        <div class="small">${esc(areaName(x.area))}</div>
+        <button class="mini" type="button" onclick="toggleGate('${x.id}')">Reactivate</button>
+      </div>`).join('')||'<div class="empty">No deactivated gates.</div>';
+      const ic=document.getElementById('locationInactiveCount');if(ic)ic.textContent=inactive.length+' inactive';
+    }
+    search?.addEventListener('input',renderLocationLists);
+    areaButtons.forEach(b=>b.addEventListener('click',()=>{
+      areaButtons.forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      locationArea=b.dataset.area||'ALL';
+      renderLocationLists();
+    }));
+    renderLocationLists();
+    return;
   }
+}
+let locationEditorReturnScroll=0;
+function openLocationEditor(id){
+  const g=data.find(x=>x.id===id); if(!g)return;
+  const sheet=document.querySelector('#overlay .sheet');
+  locationEditorReturnScroll=sheet?.scrollTop||0;
+  document.getElementById('locationEditorOverlay')?.remove();
+  const ov=document.createElement('div'); ov.id='locationEditorOverlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:90;background:rgba(8,18,48,.72);display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)';
+  ov.innerHTML=`<div style="width:min(760px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:22px 22px 0 0;padding:18px 16px calc(22px + env(safe-area-inset-bottom));box-shadow:0 -12px 45px rgba(13,31,88,.28)">
+    <button type="button" class="close" style="float:right" onclick="closeLocationEditor()">×</button>
+    <div class="modalTitle">Edit Location</div>
+    <div class="small" style="margin:-8px 0 16px">Editing <b>${esc(g.name)}</b> • ${esc(areaName(g.area))}</div>
+    <div class="form">
+      <label>Gate / Location<input id="aName" value="${esc(g.name)}"></label>
+      <label>Area<select id="aArea"><option value="A">Concourse A</option><option value="B">Concourse B</option><option value="C">Concourse C</option><option value="Landside">Landside / Departure</option><option value="Arrivals">Arrivals</option></select></label>
+      <label>Exact destination URL<input id="aUrl" value="${esc(g.pointerUrl||'')}"></label>
+      <label>Facilities<textarea id="aFac">${esc(g.facilities.filter(f=>f.active).map(f=>f.name).join('\\n'))}</textarea></label>
+      <button class="btn primary" type="button" onclick="saveGate('${g.id}')">Save changes</button>
+      <button class="btn secondary" type="button" onclick="closeLocationEditor()">Cancel</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov); document.body.classList.add('modal-open');
+  const area=document.getElementById('aArea'); if(area)area.value=g.area;
+  ov.addEventListener('click',e=>{if(e.target===ov)closeLocationEditor()});
+}
+function closeLocationEditor(){
+  document.getElementById('locationEditorOverlay')?.remove();
+  document.body.classList.remove('modal-open');
+  requestAnimationFrame(()=>{const sheet=document.querySelector('#overlay .sheet');if(sheet)sheet.scrollTop=locationEditorReturnScroll});
 }
 function editUser(id){
  const target=getAdmins().find(a=>a.id===id);
@@ -1254,7 +1341,14 @@ function saveGate(id){
   if(!name){alert('Gate/location name is required');return}
   if(id){const g=data.find(x=>x.id===id);g.name=name;g.area=area;g.pointerUrl=url;const old=g.facilities;g.facilities=fac.map((n,i)=>{const ex=old.find(f=>f.name===n);return ex?{...ex,active:true}:{id:g.id+'-f'+Date.now()+i,name:n,active:true,pointerUrl:''}})}
   else{const gid=name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now();data.push({id:gid,name,terminal:'Terminal 3',area,facilities:fac.map((n,i)=>({id:gid+'-f'+i,name:n,active:true,pointerUrl:''})),pointerUrl:url,active:true,status:'admin-added'})}
-  save();audit(id?'Edited location':'Created location',name);showAdmin('locations');
+  save();audit(id?'Edited location':'Created location',name);
+  if(id && document.getElementById('locationEditorOverlay')){
+    closeLocationEditor();
+    showAdmin('locations');
+    requestAnimationFrame(()=>{const sheet=document.querySelector('#overlay .sheet');if(sheet)sheet.scrollTop=locationEditorReturnScroll});
+  }else{
+    showAdmin('locations');
+  }
  });
 }
 function toggleGate(id){
