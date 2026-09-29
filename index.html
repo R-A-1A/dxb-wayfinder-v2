@@ -360,6 +360,9 @@ body.auth-locked{overflow:hidden}
 .auth-foot{margin-top:13px;font-size:10px;color:#98a2b3;text-align:center;line-height:1.4}
 .auth-logout-option{border-color:#efc9c9;background:#fff8f8}
 .auth-logout-option .utility-icon{background:#fff0f0;color:#a61b1b}
+
+/* v10 role/code staff access */
+.staff-role-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0 12px}.staff-role-btn{min-height:46px;border:1px solid #dce1ee;border-radius:12px;background:#fff;color:#132b71;font-weight:900}.staff-role-btn.active{background:#132b71;color:#ffdf01;border-color:#132b71}.staff-auth-label{display:block;font-size:12px;font-weight:800;color:#344054}.staff-auth-label input{display:block;width:100%;margin-top:6px;border:1px solid #dce1ee;border-radius:11px;padding:12px;background:#fff;color:var(--ink)}.auth-location-status{display:none;margin-top:10px;padding:9px;border-radius:10px;background:#f5f7fb;border:1px solid #dce1ee;font-size:11px}.auth-location-status.show{display:block}.auth-attempts{min-height:15px;margin-top:7px;text-align:center;color:#98a2b3;font-size:10px}.auth-management{width:100%;min-height:42px;margin-top:8px;border:1px solid #dce1ee;border-radius:11px;background:#fff;color:#132b71;font-weight:800}
 </style>
 <meta name="description" content="DXB staff wayfinding and passenger assistance PWA.">
 
@@ -572,23 +575,24 @@ body.modal-open .selected,body.utility-open .selected{display:none!important}
 </head>
 <body>
 <div id="authGate" aria-hidden="false">
-  <div class="auth-card">
-    <div class="auth-brand">Dubai International Airport</div>
-    <div class="auth-title">Staff access</div>
-    <div class="auth-sub">Sign in with an authorized DXB Staff Wayfinder account to continue.</div>
-    <form id="firebaseAuthForm" class="auth-form">
-      <label>Email
-        <input id="firebaseAuthEmail" type="email" autocomplete="username" inputmode="email" placeholder="Staff email" required>
-      </label>
-      <label>Password
-        <input id="firebaseAuthPassword" type="password" autocomplete="current-password" placeholder="Password" required>
-      </label>
-      <div id="firebaseAuthError" class="auth-error" role="alert"></div>
-      <button id="firebaseAuthSubmit" class="auth-submit" type="submit">Sign in</button>
-    </form>
-    <div class="auth-foot">Staff use only • Accounts are created by the project administrator.</div>
-  </div>
+<div class="auth-card staff-auth-card">
+<div class="auth-brand">Dubai International Airport</div>
+<div class="auth-title">DXB Staff Wayfinder</div>
+<div class="auth-sub">Select your staff role and enter the site access code.</div>
+<div class="staff-role-grid" role="group" aria-label="Staff role">
+<button type="button" class="staff-role-btn active" data-role="GXA">GXA</button>
+<button type="button" class="staff-role-btn" data-role="STL">STL</button>
+<button type="button" class="staff-role-btn" data-role="TL">TL</button>
 </div>
+<label class="staff-auth-label">Access code<input id="staffAccessCode" type="password" inputmode="numeric" placeholder="DXB2026"></label>
+<select id="staffRole" aria-label="Selected staff role" hidden><option>GXA</option><option>STL</option><option>TL</option></select>
+<div id="staffLocationStatus" class="auth-location-status" role="status"></div>
+<div id="staffAuthError" class="auth-error" role="alert"></div>
+<div id="staffAuthAttempts" class="auth-attempts"></div>
+<button id="staffAuthSubmit" class="auth-submit" type="button">Enter Wayfinder</button>
+<button id="managementLoginOption" class="auth-management" type="button">Owner / Admin login</button>
+<div class="auth-foot">Staff access uses the site code. Management accounts are handled separately.</div>
+</div></div>
 <div id="startupOverlay" class="startup-overlay" aria-hidden="true">
   <div class="startup-sky">
     <div class="startup-line startup-line-a"></div>
@@ -1410,95 +1414,10 @@ try{restoreAdminSession()}catch(e){}
 
 </script>
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-  import {
-    getAuth,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    signOut
-  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyBdrpHAA1f8u4Y3NcmUJvJ_4k8oa3cWMjs",
-    authDomain: "dxb-staff-wayfinder.firebaseapp.com",
-    projectId: "dxb-staff-wayfinder",
-    storageBucket: "dxb-staff-wayfinder.firebasestorage.app",
-    messagingSenderId: "975115625194",
-    appId: "1:975115625194:web:bd1a0f1c2a1522555c2d93"
-  };
-
-  const firebaseApp = initializeApp(firebaseConfig);
-  const auth = getAuth(firebaseApp);
-  window.dxbFirebaseAuth = auth;
-
-  const gate = document.getElementById("authGate");
-  const form = document.getElementById("firebaseAuthForm");
-  const email = document.getElementById("firebaseAuthEmail");
-  const password = document.getElementById("firebaseAuthPassword");
-  const errorBox = document.getElementById("firebaseAuthError");
-  const submit = document.getElementById("firebaseAuthSubmit");
-
-  document.body.classList.add("auth-locked");
-
-  function showAuthError(message) {
-    errorBox.textContent = message;
-    errorBox.classList.add("show");
-  }
-
-  function clearAuthError() {
-    errorBox.textContent = "";
-    errorBox.classList.remove("show");
-  }
-
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    clearAuthError();
-    submit.disabled = true;
-    submit.textContent = "Signing in…";
-    try {
-      await signInWithEmailAndPassword(auth, email.value.trim(), password.value);
-    } catch (error) {
-      const messages = {
-        "auth/invalid-credential": "The email or password is incorrect.",
-        "auth/invalid-email": "Enter a valid email address.",
-        "auth/user-disabled": "This account has been disabled.",
-        "auth/too-many-requests": "Too many attempts. Please wait and try again."
-      };
-      showAuthError(messages[error.code] || "Sign-in failed. Please check the account details.");
-    } finally {
-      submit.disabled = false;
-      submit.textContent = "Sign in";
-    }
-  });
-
-  document.getElementById("authSignOutOption")?.addEventListener("click", async () => {
-    try {
-      await signOut(auth);
-      document.body.classList.add("auth-locked");
-      gate?.classList.remove("auth-hidden");
-      gate?.setAttribute("aria-hidden", "false");
-      document.getElementById("menuClose")?.click();
-    } catch (error) {
-      console.error("Firebase sign-out failed", error);
-    }
-  });
-
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      document.body.classList.remove("auth-locked");
-      gate?.classList.add("auth-hidden");
-      gate?.setAttribute("aria-hidden", "true");
-      clearAuthError();
-      if (email) email.value = "";
-      if (password) password.value = "";
-      window.dxbFirebaseUser = user;
-    } else {
-      document.body.classList.add("auth-locked");
-      gate?.classList.remove("auth-hidden");
-      gate?.setAttribute("aria-hidden", "false");
-      window.dxbFirebaseUser = null;
-    }
-  });
-</script>
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+const firebaseConfig={authDomain:"dxb-staff-wayfinder.firebaseapp.com",projectId:"dxb-staff-wayfinder",storageBucket:"dxb-staff-wayfinder.firebasestorage.app",messagingSenderId:"975115625194",appId:"1:975115625194:web:bd1a0f1c2a1522555c2d93"};
+window.dxbFirebaseAuth=getAuth(initializeApp(firebaseConfig));
+</script><script src="./access-control.js"></script>
 
 
