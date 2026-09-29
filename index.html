@@ -1266,16 +1266,16 @@ function openLocationEditor(id){
     <div class="modalTitle">Edit Location</div>
     <div class="small" style="margin:-8px 0 16px">Editing <b>${esc(g.name)}</b> • ${esc(areaName(g.area))}</div>
     <div class="form">
-      <label>Gate / Location<input id="aName" value="${esc(g.name)}"></label>
-      <label>Area<select id="aArea"><option value="A">Concourse A</option><option value="B">Concourse B</option><option value="C">Concourse C</option><option value="Landside">Landside / Departure</option><option value="Arrivals">Arrivals</option></select></label>
-      <label>Exact destination URL<input id="aUrl" value="${esc(g.pointerUrl||'')}"></label>
-      <label>Facilities<textarea id="aFac">${esc(g.facilities.filter(f=>f.active).map(f=>f.name).join('\\n'))}</textarea></label>
+      <label>Gate / Location<input id="editAName" value="${esc(g.name)}"></label>
+      <label>Area<select id="editAArea"><option value="A">Concourse A</option><option value="B">Concourse B</option><option value="C">Concourse C</option><option value="Landside">Landside / Departure</option><option value="Arrivals">Arrivals</option></select></label>
+      <label>Exact destination URL<input id="editAUrl" value="${esc(g.pointerUrl||'')}"></label>
+      <label>Facilities<textarea id="editAFac">${esc(g.facilities.filter(f=>f.active).map(f=>f.name).join('\\n'))}</textarea></label>
       <button class="btn primary" type="button" onclick="saveGate('${g.id}')">Save changes</button>
       <button class="btn secondary" type="button" onclick="closeLocationEditor()">Cancel</button>
     </div>
   </div>`;
   document.body.appendChild(ov); document.body.classList.add('modal-open');
-  const area=document.getElementById('aArea'); if(area)area.value=g.area;
+  const area=document.getElementById('editAArea'); if(area)area.value=g.area;
   ov.addEventListener('click',e=>{if(e.target===ov)closeLocationEditor()});
 }
 function closeLocationEditor(){
@@ -1336,8 +1336,10 @@ function transferOwnership(){
 
 function saveGate(id){
  return requireSensitiveAuth(id?'editing a location':'creating a location',()=>{
-  const name=document.getElementById('aName').value.trim(),area=document.getElementById('aArea').value,url=document.getElementById('aUrl').value.trim();
-  const fac=document.getElementById('aFac').value.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  const editor=document.getElementById('locationEditorOverlay');
+  const prefix=id&&editor?'edit':'a';
+  const name=document.getElementById(prefix+'Name').value.trim(),area=document.getElementById(prefix+'Area').value,url=document.getElementById(prefix+'Url').value.trim();
+  const fac=document.getElementById(prefix+'Fac').value.split(/\n+/).map(x=>x.trim()).filter(Boolean);
   if(!name){alert('Gate/location name is required');return}
   if(id){const g=data.find(x=>x.id===id);g.name=name;g.area=area;g.pointerUrl=url;const old=g.facilities;g.facilities=fac.map((n,i)=>{const ex=old.find(f=>f.name===n);return ex?{...ex,active:true}:{id:g.id+'-f'+Date.now()+i,name:n,active:true,pointerUrl:''}})}
   else{const gid=name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now();data.push({id:gid,name,terminal:'Terminal 3',area,facilities:fac.map((n,i)=>({id:gid+'-f'+i,name:n,active:true,pointerUrl:''})),pointerUrl:url,active:true,status:'admin-added'})}
