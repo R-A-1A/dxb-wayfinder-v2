@@ -1650,19 +1650,17 @@ render();
 updateEmergencyBanner();
 try{restoreAdminSession()}catch(e){}
 restoreViewState();
-if(window.dxbCloudReady){
- window.dxbCloudReady.then(async()=>{
-  try{
-   const cloudData=await window.dxbCloudGetLocations();
-   if(Array.isArray(cloudData)&&cloudData.length){
-    data=cloudData;
-    normalizeLocationOrder();
-    localStorage.setItem(KEY,JSON.stringify(data));
-    render();
-   }
-  }catch(e){console.warn('Cloud location load skipped',e)}
- });
-}
+window.addEventListener('dxb-cloud-ready',async()=>{
+ try{
+  const cloudData=await window.dxbCloudGetLocations();
+  if(Array.isArray(cloudData)&&cloudData.length){
+   data=cloudData;
+   normalizeLocationOrder();
+   localStorage.setItem(KEY,JSON.stringify(data));
+   render();
+  }
+ }catch(e){console.warn('Cloud location load skipped',e)}
+});
 
 
 </script>
@@ -1678,7 +1676,7 @@ const db=getFirestore(app);
 window.dxbFirebaseAuth=auth;
 
 const LOCATION_DOC=doc(db,'wayfinder','locations');
-window.dxbCloudReady=Promise.resolve();
+window.dxbCloudReady=true;
 
 window.dxbFirebaseSignIn=async(username,password)=>{
  try{
@@ -1718,6 +1716,7 @@ window.dxbCloudSaveLocations=async(locations)=>{
   return false;
  }
 };
+window.dispatchEvent(new Event('dxb-cloud-ready'));
 </script>
 
 
