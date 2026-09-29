@@ -722,7 +722,33 @@ const SOURCE=[{"id":"a01","name":"A01","terminal":"Terminal 3","area":"A","facil
 const KEY='dxb_wayfinder_master_v3';
 let data=load(), filter='ALL', facilityFilter='ALL', selected=null;
 
-function load(){try{const x=JSON.parse(localStorage.getItem(KEY));return x||structuredClone(SOURCE)}catch(e){return structuredClone(SOURCE)}}
+function load(){
+ try{
+  const x=JSON.parse(localStorage.getItem(KEY));
+  const arr=Array.isArray(x)?x:structuredClone(SOURCE);
+  arr.forEach((g,i)=>{
+    if(!Number.isFinite(g.sortOrder))g.sortOrder=i;
+    if(!Array.isArray(g.facilities))g.facilities=[];
+    const fixed=[];
+    g.facilities.forEach((f,fi)=>{
+      const parts=String(f?.name||'').split(/\n|\\n/).map(v=>v.trim()).filter(Boolean);
+      if(parts.length<=1){fixed.push(f);return}
+      parts.forEach((name,pi)=>fixed.push({...f,id:(f.id||g.id+'-f'+fi)+(pi?' -'+pi:''),name}));
+    });
+    g.facilities=fixed;
+  });
+  return arr;
+ }catch(e){
+  const arr=structuredClone(SOURCE);
+  arr.forEach((g,i)=>g.sortOrder=i);
+  return arr;
+ }
+}
+function normalizeLocationOrder(){
+ data.forEach((g,i)=>{if(!Number.isFinite(g.sortOrder))g.sortOrder=i});
+ data.sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
+ data.forEach((g,i)=>g.sortOrder=i);
+}
 function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function areaName(a){return a==='A'?'Concourse A':a==='B'?'Concourse B':a==='C'?'Concourse C':a}
@@ -773,7 +799,7 @@ function render(){
    const candidates=[x.name,x.area,...x.facilities.filter(f=>f.active).map(f=>f.name)];
    const score=Math.max(...candidates.map(v=>searchScore(q,v)));
    return {x,score};
- }).filter(item=>!q||item.score>0).sort((a,b)=>b.score-a.score || normalizeSearch(a.x.name).localeCompare(normalizeSearch(b.x.name),undefined,{numeric:true,sensitivity:'base'})).map(item=>item.x);
+ }).filter(item=>!q||item.score>0).sort((a,b)=>b.score-a.score || (a.x.sortOrder??0)-(b.x.sortOrder??0) || normalizeSearch(a.x.name).localeCompare(normalizeSearch(b.x.name),undefined,{numeric:true,sensitivity:'base'})).map(item=>item.x);
  document.getElementById('count').textContent=arr.length+' location'+(arr.length===1?'':'s');
  const r=document.getElementById('results');
  if(!arr.length){r.innerHTML='<div class="empty">No matching locations. Try a gate, facility, or area.</div>';return}
@@ -1220,10 +1246,10 @@ function showAdmin(section='home', editId=null){
     body.innerHTML=head('Emergency Queue','Police, ambulance and missing-person alerts')+`<section class="admin-card"><div class="admin-card-head"><span class="admin-icon">🚨</span><div><b>Operational Alerts</b><small>Targeted to Admin, TL, STL and Owner</small></div></div><div class="admin-card-body"><div class="emergency-list">${alerts.length?alerts.map(a=>`<div class="emergency-list-item"><b>${esc(a.type)} • ${esc(a.gate)} • ${esc(areaName(a.area))}</b><small>${a.name?esc(a.name)+' • ':''}${a.gender?esc(a.gender)+' • ':''}${a.age?esc(a.age)+' years • ':''}${esc(a.details||'No additional details')}<br>${new Date(a.at).toLocaleString()}${a.senderName?' • From: '+esc(a.senderName):''} • Status: ${esc(a.status||'active')}</small>${a.actions?.length?`<div class="action-log">${a.actions.map(x=>`<span>${esc(x.action.toUpperCase())} • ${esc(x.name)} • ${esc(new Date(x.at).toLocaleString())}</span>`).join('')}</div>`:''}<div class="admin-alert-targets">${(a.notifyRoles||['Admin','TL','STL','Owner']).map(r=>`<span>${esc(r)}</span>`).join('')}</div>${a.status==='active'?`<button class="mini" onclick="stopEmergency('${a.id}')">■ Stop Emergency</button>`:''}</div>`).join(''):'<div class="empty">No emergency alerts.</div>'}</div></div></section>`; return;
   }
   if(section==='locations'){
-    const active=data.filter(x=>x.active), inactive=data.filter(x=>!x.active);
-    body.innerHTML=head('Location Management','Search, filter and edit gates without losing your place')+
+    normalizeLocationOrder();
+    body.innerHTML=head('Location Management','Search directly, filter by concourse, or drag to reorder gates')+
       `<section class="admin-card">
-        <div class="admin-card-head"><span class="admin-icon">⌖</span><div><b>Find a Gate</b><small>Search directly or filter by concourse</small></div></div>
+        <div class="admin-card-head"><span class="admin-icon">⌖</span><div><b>Find a Gate</b><small>Drag a gate to place it anywhere in the active list</small></div></div>
         <div class="admin-card-body">
           <div class="form">
             <label>Search gate number
@@ -1238,6 +1264,7 @@ function showAdmin(section='home', editId=null){
             <button type="button" class="mini location-area-filter" data-area="Landside">Landside / Departure</button>
             <button type="button" class="mini location-area-filter" data-area="Arrivals">Arrivals</button>
           </div>
+          <div class="small" style="margin:8px 0 4px">Drag the ☷ handle to change the order. The new order is saved and used by the PWA.</div>
           <div id="locationResultCount" class="small" style="margin:8px 0 2px"></div>
           <div id="locationActiveList"></div>
         </div>
@@ -1261,14 +1288,19 @@ function showAdmin(section='home', editId=null){
     const search=document.getElementById('locationSearch');
     const areaButtons=[...document.querySelectorAll('.location-area-filter')];
     let locationArea='ALL';
+    let draggedLocationId=null;
+
     function renderLocationLists(){
+      normalizeLocationOrder();
+      const activeNow=data.filter(x=>x.active);
+      const inactiveNow=data.filter(x=>!x.active);
       const q=normalizeSearch(search?.value||'');
-      const filtered=active.filter(x=>(locationArea==='ALL'||x.area===locationArea)&&(!q||searchScore(q,x.name)>0||normalizeSearch(x.name).includes(q)));
+      const filtered=activeNow.filter(x=>(locationArea==='ALL'||x.area===locationArea)&&(!q||searchScore(q,x.name)>0||normalizeSearch(x.name).includes(q)));
       const list=document.getElementById('locationActiveList');
       const count=document.getElementById('locationResultCount');
       if(count) count.textContent=filtered.length+' active location'+(filtered.length===1?'':'s')+' shown';
-      if(list) list.innerHTML=filtered.map(x=>`<div class="adminitem">
-        <div class="adminrow"><b>${esc(x.name)}</b><span class="status active">ACTIVE</span></div>
+      if(list) list.innerHTML=filtered.map(x=>`<div class="adminitem location-sort-item" draggable="true" data-location-id="${esc(x.id)}" style="cursor:grab">
+        <div class="adminrow"><div style="display:flex;align-items:center;gap:9px"><span class="location-drag-handle" title="Drag to reorder" aria-label="Drag to reorder" style="font-size:18px;color:#667085;touch-action:none">☷</span><b>${esc(x.name)}</b></div><span class="status active">ACTIVE</span></div>
         <div class="small">${esc(areaName(x.area))}</div>
         <div class="useractions">
           <button class="mini" type="button" onclick="openLocationEditor('${x.id}')">Edit</button>
@@ -1276,13 +1308,45 @@ function showAdmin(section='home', editId=null){
         </div>
       </div>`).join('')||'<div class="empty">No matching active locations.</div>';
       const il=document.getElementById('locationInactiveList');
-      if(il) il.innerHTML=inactive.map(x=>`<div class="adminitem">
+      if(il) il.innerHTML=inactiveNow.map(x=>`<div class="adminitem">
         <div class="adminrow"><b>${esc(x.name)}</b><span class="status inactive">DEACTIVATED</span></div>
         <div class="small">${esc(areaName(x.area))}</div>
         <button class="mini" type="button" onclick="toggleGate('${x.id}')">Reactivate</button>
       </div>`).join('')||'<div class="empty">No deactivated gates.</div>';
-      const ic=document.getElementById('locationInactiveCount');if(ic)ic.textContent=inactive.length+' inactive';
+      const ic=document.getElementById('locationInactiveCount');if(ic)ic.textContent=inactiveNow.length+' inactive';
+      bindLocationDrag();
     }
+
+    function bindLocationDrag(){
+      document.querySelectorAll('#locationActiveList .location-sort-item').forEach(item=>{
+        item.addEventListener('dragstart',e=>{
+          draggedLocationId=item.dataset.locationId;
+          item.style.opacity='.45';
+          e.dataTransfer.effectAllowed='move';
+          e.dataTransfer.setData('text/plain',draggedLocationId);
+        });
+        item.addEventListener('dragend',()=>{
+          item.style.opacity='';
+          draggedLocationId=null;
+          document.querySelectorAll('#locationActiveList .location-sort-item').forEach(x=>x.style.borderTop='');
+        });
+        item.addEventListener('dragover',e=>{
+          e.preventDefault();
+          if(item.dataset.locationId!==draggedLocationId)item.style.borderTop='3px solid #0B5ED7';
+          e.dataTransfer.dropEffect='move';
+        });
+        item.addEventListener('dragleave',()=>{item.style.borderTop=''});
+        item.addEventListener('drop',e=>{
+          e.preventDefault();
+          item.style.borderTop='';
+          const fromId=draggedLocationId||e.dataTransfer.getData('text/plain');
+          const toId=item.dataset.locationId;
+          if(!fromId||!toId||fromId===toId)return;
+          reorderLocation(fromId,toId);
+        });
+      });
+    }
+
     search?.addEventListener('input',renderLocationLists);
     areaButtons.forEach(b=>b.addEventListener('click',()=>{
       areaButtons.forEach(x=>x.classList.remove('active'));
@@ -1292,7 +1356,16 @@ function showAdmin(section='home', editId=null){
     }));
     renderLocationLists();
     return;
-  }
+  }}
+function reorderLocation(fromId,toId){
+ const from=data.findIndex(x=>x.id===fromId),to=data.findIndex(x=>x.id===toId);
+ if(from<0||to<0||from===to)return;
+ const moved=data.splice(from,1)[0];
+ data.splice(to,0,moved);
+ normalizeLocationOrder();
+ save();
+ audit('Reordered location',moved.name+' before '+(data.find(x=>x.id===toId)?.name||'target'));
+ showAdmin('locations');
 }
 let locationEditorReturnScroll=0;
 function openLocationEditor(id){
@@ -1380,10 +1453,11 @@ function saveGate(id){
   const editor=document.getElementById('locationEditorOverlay');
   const prefix=id&&editor?'edit':'a';
   const name=document.getElementById(prefix+'Name').value.trim(),area=document.getElementById(prefix+'Area').value,url=document.getElementById(prefix+'Url').value.trim();
-  const fac=document.getElementById(prefix+'Fac').value.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  const fac=document.getElementById(prefix+'Fac').value.split(/\n+|\\n+/).map(x=>x.trim()).filter(Boolean);
   if(!name){alert('Gate/location name is required');return}
   if(id){const g=data.find(x=>x.id===id);g.name=name;g.area=area;g.pointerUrl=url;const old=g.facilities;g.facilities=fac.map((n,i)=>{const ex=old.find(f=>f.name===n);return ex?{...ex,active:true}:{id:g.id+'-f'+Date.now()+i,name:n,active:true,pointerUrl:''}})}
-  else{const gid=name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now();data.push({id:gid,name,terminal:'Terminal 3',area,facilities:fac.map((n,i)=>({id:gid+'-f'+i,name:n,active:true,pointerUrl:''})),pointerUrl:url,active:true,status:'admin-added'})}
+  else{const gid=name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now();data.push({id:gid,name,terminal:'Terminal 3',area,facilities:fac.map((n,i)=>({id:gid+'-f'+i,name:n,active:true,pointerUrl:''})),pointerUrl:url,active:true,status:'admin-added',sortOrder:data.length})}
+  normalizeLocationOrder();
   save();audit(id?'Edited location':'Created location',name);
   if(id && document.getElementById('locationEditorOverlay')){
     closeLocationEditor();
