@@ -87,9 +87,9 @@ main{max-width:760px;margin:auto;padding:16px 14px 124px}
   white-space:nowrap;border:1px solid var(--line);background:#fff;border-radius:999px;
   padding:8px 13px;color:#475467;font-weight:700;font-size:12px;
 }
-.chip.active{
-  background:var(--navy);color:var(--yellow);border-color:var(--navy);
-  box-shadow:0 4px 12px rgba(19,43,113,.16);
+.chip.active,.mini.location-area-filter.active{
+  background:#0B5ED7;color:#fff;border-color:#0B5ED7;
+  box-shadow:0 4px 12px rgba(11,94,215,.22);
 }
 .facilityFilter{
   flex:none;white-space:nowrap;border:1px solid var(--line);background:#fff;
@@ -872,7 +872,43 @@ document.addEventListener('dragstart',function(e){
   if(e.target.closest && e.target.closest('.card,.gate,.facility,.badge')) e.preventDefault();
 });
 
-document.getElementById('search').addEventListener('input',render);
+const VIEW_STATE_KEY='dxb_wayfinder_view_state_v1';
+let viewStateTimer=null;
+function saveViewState(){
+  try{
+    sessionStorage.setItem(VIEW_STATE_KEY,JSON.stringify({
+      scrollY:Math.round(window.scrollY||0),
+      search:document.getElementById('search')?.value||'',
+      filter,
+      facilityFilter
+    }));
+  }catch(e){}
+}
+function queueViewStateSave(){
+  clearTimeout(viewStateTimer);
+  viewStateTimer=setTimeout(saveViewState,120);
+}
+function applyFilterButtonState(){
+  document.querySelectorAll('#chips .chip').forEach(x=>x.classList.toggle('active',x.dataset.f===filter));
+  document.querySelectorAll('#facilityChips .chip').forEach(x=>x.classList.toggle('active',x.dataset.facility===facilityFilter && facilityFilter!=='Baby Room'));
+  document.querySelectorAll('#babyRoomChips .chip').forEach(x=>x.classList.toggle('active',x.dataset.facility===facilityFilter));
+  document.querySelector('#chips .chip[data-f="ALL"]')?.classList.toggle('active',filter==='ALL');
+  document.querySelector('#facilityChips .chip[data-facility="ALL"]')?.classList.toggle('active',facilityFilter==='ALL');
+}
+function restoreViewState(){
+  try{
+    const s=JSON.parse(sessionStorage.getItem(VIEW_STATE_KEY)||'null');
+    if(!s)return;
+    if(typeof s.search==='string')document.getElementById('search').value=s.search;
+    if(['ALL','A','B','C','Landside','Arrivals'].includes(s.filter))filter=s.filter;
+    if(typeof s.facilityFilter==='string')facilityFilter=s.facilityFilter;
+    applyFilterButtonState();
+    render();
+    const y=Math.max(0,Number(s.scrollY)||0);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,y)));
+  }catch(e){}
+}
+document.getElementById('search').addEventListener('input',()=>{render();queueViewStateSave();});
 document.querySelectorAll('#chips .chip').forEach(b=>b.addEventListener('click',()=>{
   const wasActive=b.classList.contains('active');
   document.querySelectorAll('#chips .chip').forEach(x=>x.classList.remove('active'));
@@ -882,7 +918,7 @@ document.querySelectorAll('#chips .chip').forEach(b=>b.addEventListener('click',
     b.classList.add('active');
     filter=b.dataset.f;
   }
-  render();
+  render();queueViewStateSave();
 }));
 
 document.querySelectorAll('#facilityChips .chip, #babyRoomChips .chip').forEach(b=>b.addEventListener('click',()=>{
@@ -892,6 +928,7 @@ document.querySelectorAll('#facilityChips .chip, #babyRoomChips .chip').forEach(
     document.querySelectorAll('#babyRoomChips .chip').forEach(x=>x.classList.remove('active'));
     if (babyWasActive) {
       facilityFilter='ALL';
+      document.querySelector('#facilityChips .chip[data-facility="ALL"]')?.classList.add('active');
     } else {
       b.classList.add('active');
       facilityFilter='Baby Room';
@@ -908,8 +945,11 @@ document.querySelectorAll('#facilityChips .chip, #babyRoomChips .chip').forEach(
       facilityFilter=b.dataset.facility;
     }
   }
-  render();
+  render();queueViewStateSave();
 }));
+window.addEventListener('scroll',queueViewStateSave,{passive:true});
+window.addEventListener('pagehide',saveViewState);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveViewState()});
 
 
 function openAdmin(){
@@ -1391,8 +1431,6 @@ function toggleGate(id){
   if(!reduce){
     const bootUntil=Date.now()+3500;
     setTimeout(()=>document.getElementById('startupOverlay')?.classList.add('hide'),2700);setTimeout(()=>document.getElementById('startupOverlay')?.remove(),3350);
-    window.addEventListener('pageshow',()=>{if(Date.now()>bootUntil)setTimeout(playStartup,30)});
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()>bootUntil)setTimeout(playStartup,80)});
   }
 })();
 
@@ -1522,6 +1560,8 @@ document.getElementById('alertsOverlay')?.addEventListener('click',e=>{if(e.targ
 render();
 updateEmergencyBanner();
 try{restoreAdminSession()}catch(e){}
+restoreViewState();
+
 
 </script>
 <script type="module">
