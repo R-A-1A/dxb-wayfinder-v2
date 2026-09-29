@@ -1,0 +1,42 @@
+name: Apply role code gate
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          if grep -q 'role-code-gate.js' index.html; then exit 0; fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('index.html'); s=p.read_text()
+          pattern=re.compile(r'<div id="authGate" aria-hidden="false">.*?</div>\s*</div>\s*<div id="startupOverlay"',re.S)
+          gate='''<div id="authGate" aria-hidden="false"><div class="auth-card staff-auth-card">
+          <div class="auth-brand">Dubai International Airport</div>
+          <div class="auth-title">DXB Staff Wayfinder</div>
+          <div class="auth-sub">Enter your user role to continue.</div>
+          <div class="staff-role-grid" role="group" aria-label="Staff role">
+          <button type="button" class="staff-role-btn active" data-role="GXA">GXA</button>
+          <button type="button" class="staff-role-btn" data-role="STL">STL</button>
+          <button type="button" class="staff-role-btn" data-role="TL">TL</button></div>
+          <label class="staff-auth-label">Access code<input id="staffAccessCode" type="password" inputmode="numeric" placeholder="DXB2026"></label>
+          <select id="staffRole" hidden><option>GXA</option><option>STL</option><option>TL</option></select>
+          <div id="staffLocationStatus" class="auth-location-status"></div><div id="staffAuthError" class="auth-error"></div><div id="staffAuthAttempts" class="auth-attempts"></div>
+          <button id="staffAuthSubmit" class="auth-submit" type="button">Continue</button>
+          <button id="managementLoginOption" class="auth-management" type="button">Owner / Admin login</button>
+          <div class="auth-foot">Staff access is separate from management accounts.</div></div></div><div id="startupOverlay"'''
+          s,n=pattern.subn(gate,s,count=1)
+          if n!=1: raise SystemExit('gate not found')
+          s=s.replace('</body>','<script src="./role-code-gate.js"></script>\n</body>',1)
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m "Update opening screen to two-step role code access"
+          git push
