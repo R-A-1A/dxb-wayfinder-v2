@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#132B71">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DXB Wayfinder">
 <title>DXB Staff Wayfinder</title>
 <style>
 :root{
@@ -415,6 +420,7 @@ body.auth-locked{overflow:hidden}
 .utility-menu{padding-top:calc(env(safe-area-inset-top) + 76px);width:min(82vw,340px)}
 .utility-head{padding-left:8px}.utility-kicker{font-size:9px}.utility-title{font-size:20px}
 .utility-option{min-height:76px}.utility-option.official .utility-icon{background:#132b71;color:#ffdf01}
+.install-option{border-color:#d3dbea;background:#f8faff}.install-option .utility-icon{background:#ffdf01;color:#132b71}.install-option[hidden]{display:none}
 /* Filters remain available when scrolling upward. */
 body.scroll-up .filter-dock{top:calc(var(--header-h) + 72px);transform:translate(-50%,0);opacity:1;pointer-events:auto}
 body.scroll-down .filter-dock{top:var(--header-h);transform:translate(-50%,0);opacity:1;pointer-events:auto}
@@ -631,6 +637,9 @@ body.modal-open .selected,body.utility-open .selected{display:none!important}
   </button>
   <button class="utility-option" id="staffSuggestionsOption">
     <span class="utility-icon">✦</span><span><b>Staff Suggestions</b><small>Send an improvement idea</small></span><strong>›</strong>
+  </button>
+    <button class="utility-option install-option" id="installAppOption" type="button" hidden>
+    <span class="utility-icon">＋</span><span><b>Add to Home Screen</b><small>Install DXB Wayfinder as an app</small></span><strong>›</strong>
   </button>
   <div class="utility-foot">Staff use only • DXB Wayfinder<br><a href="mailto:yadhukrishnan1998born@gmail.com" class="ram-credit">©RAM</a></div>
 </aside>
@@ -1358,6 +1367,35 @@ function toggleGate(id){
   document.getElementById('chips')?.addEventListener('click',syncDock);document.getElementById('facilityChips')?.addEventListener('click',syncDock);
   syncDock();
 })();
+
+/* PWA home-screen install */
+let dxbInstallPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  dxbInstallPrompt=e;
+  const b=document.getElementById('installAppOption');
+  if(b)b.hidden=false;
+});
+window.addEventListener('appinstalled',()=>{
+  dxbInstallPrompt=null;
+  const b=document.getElementById('installAppOption');
+  if(b)b.hidden=true;
+});
+document.getElementById('installAppOption')?.addEventListener('click',async()=>{
+  closeQuickMenu();
+  if(dxbInstallPrompt){
+    dxbInstallPrompt.prompt();
+    try{await dxbInstallPrompt.userChoice}catch(e){}
+    dxbInstallPrompt=null;
+    const b=document.getElementById('installAppOption');
+    if(b)b.hidden=true;
+    return;
+  }
+  alert('If your browser does not show the install prompt, use the browser menu and choose “Add to Home screen” or “Install app”.');
+});
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./firebase-messaging-sw.js').catch(()=>{}));
+}
 
 /* Quick access actions */
 document.getElementById('airportCommunityOption')?.addEventListener('click',openAirportCommunity);
