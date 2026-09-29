@@ -1,6 +1,8 @@
 name: Remove opening authentication
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -32,7 +34,6 @@ jobs:
 
           p.write_text(new, encoding="utf-8")
           print("Opening authentication block removed.")
-
           PY
 
       - name: Commit change
