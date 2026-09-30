@@ -1530,10 +1530,12 @@ function toggleGate(id){
   window.playStartup=playStartup;
   const initial=document.getElementById('startupOverlay');if(initial)fillQuote(initial);
   const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(!reduce){
-    const bootUntil=Date.now()+3500;
-    setTimeout(()=>document.getElementById('startupOverlay')?.classList.add('hide'),2700);setTimeout(()=>document.getElementById('startupOverlay')?.remove(),3350);
-  }
+  // Always dismiss the startup screen. Reduced-motion users previously got stuck here
+  // because the hide timers were skipped entirely.
+  const hideDelay=reduce?700:2700;
+  const removeDelay=reduce?1000:3350;
+  setTimeout(()=>document.getElementById('startupOverlay')?.classList.add('hide'),hideDelay);
+  setTimeout(()=>document.getElementById('startupOverlay')?.remove(),removeDelay);
 })();
 
 /* v10 draggable scroll fidget: whole rail is draggable, with end-to-end wrap */
