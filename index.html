@@ -281,7 +281,7 @@ body.scroll-down.filters-visible .filter-dock{top:var(--header-h)}
 .menu-toggle{top:calc(env(safe-area-inset-top) + 12px)}
 @media(max-width:560px){.head{padding-left:58px}.menu-toggle{top:calc(env(safe-area-inset-top) + 9px)}}
 /* startup */
-.startup-overlay{position:fixed;inset:0;background:linear-gradient(145deg,#071a50 0%,#0f2b71 58%,#173b86 100%);z-index:200;display:grid;place-items:center;overflow:hidden;color:#fff;opacity:1;visibility:visible;transition:opacity .55s ease,visibility .55s ease}
+.startup-overlay{position:fixed;inset:0;background:linear-gradient(145deg,#071a50 0%,#0f2b71 58%,#173b86 100%);z-index:200;display:none;place-items:center;overflow:hidden;color:#fff;opacity:1;visibility:visible;transition:opacity .55s ease,visibility .55s ease}
 .startup-overlay.hide{opacity:0;visibility:hidden;pointer-events:none}
 .startup-sky{position:absolute;inset:0;overflow:hidden}
 .startup-line{position:absolute;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),rgba(255,223,1,.78),rgba(255,255,255,.14),transparent);transform:rotate(-28deg);filter:blur(.1px);opacity:.85}
