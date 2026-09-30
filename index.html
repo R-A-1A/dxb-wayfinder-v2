@@ -1130,9 +1130,19 @@ const ADMIN_KEY='dxb_wayfinder_admins_v2';
 function getAdmins(){
   try{
     const a=JSON.parse(localStorage.getItem(ADMIN_KEY));
-    if(Array.isArray(a)&&a.length)return a;
+    if(Array.isArray(a)&&a.length){
+      // Migrate the untouched legacy owner username to the Firebase admin username.
+      // The Firebase password is verified by Firebase during sign-in.
+      if(a.length===1 && a[0].id==='owner' && a[0].username==='RAM' && a[0].password==='DXB2026'){
+        a[0].name='Admin';
+        a[0].username='admin';
+        a[0].role='owner';
+        localStorage.setItem(ADMIN_KEY,JSON.stringify(a));
+      }
+      return a;
+    }
   }catch(e){}
-  const initial=[{id:'owner',name:'RAM',username:'RAM',password:'DXB2026',role:'owner'}];
+  const initial=[{id:'owner',name:'Admin',username:'admin',password:'',role:'owner'}];
   localStorage.setItem(ADMIN_KEY,JSON.stringify(initial));
   return initial;
 }
@@ -1160,17 +1170,20 @@ function adminLogin(){
  <button class="btn primary" onclick="checkAdmin()">Enter Admin</button>
  </div>`;
 }
-async function checkAdmin(){
+async async function checkAdmin(){
  const u=document.getElementById('adminUser').value.trim().toLowerCase();
  const pw=document.getElementById('pw').value;
- const ok=getAdmins().find(a=>a.username.toLowerCase()===u && a.password===pw);
+ const ok=getAdmins().find(a=>a.username.toLowerCase()===u);
  if(!ok){alert('Incorrect username or password');return}
  if(window.dxbFirebaseSignIn){
   const cloudOk=await window.dxbFirebaseSignIn(u,pw);
   if(!cloudOk){
-   alert('The local admin account is valid, but Firebase authorization is not set up for this account yet. Create the matching Firebase Authentication account first.');
+   alert('Firebase sign-in failed. Check the admin email/password and Firebase Authentication settings.');
    return;
   }
+  // Keep the local session checks compatible with the Firebase password.
+  ok.password=pw;
+  saveAdmins(getAdmins().map(a=>a.id===ok.id?ok:a));
  }
  window.currentAdmin=ok;
  try{sessionStorage.setItem('dxb_wayfinder_admin_session',ok.id)}catch(e){}
