@@ -1669,7 +1669,14 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebas
 import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
-const firebaseConfig={authDomain:"dxb-staff-wayfinder.firebaseapp.com",projectId:"dxb-staff-wayfinder",storageBucket:"dxb-staff-wayfinder.firebasestorage.app",messagingSenderId:"975115625194",appId:"1:975115625194:web:bd1a0f1c2a1522555c2d93"};
+const firebaseConfig={
+  apiKey:"AIzaSyBdrpHAA1f8u4Y3NcmUJvJ_4k8oa3cWMjs",
+  authDomain:"dxb-staff-wayfinder.firebaseapp.com",
+  projectId:"dxb-staff-wayfinder",
+  storageBucket:"dxb-staff-wayfinder.firebasestorage.app",
+  messagingSenderId:"975115625194",
+  appId:"1:975115625194:web:bd1a0f1c2a1522555c2d93"
+};
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
 const db=getFirestore(app);
