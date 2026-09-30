@@ -725,7 +725,7 @@ let data=load(), filter='ALL', facilityFilter='ALL', selected=null;
 function load(){
  try{
   const x=JSON.parse(localStorage.getItem(KEY));
-  const arr=Array.isArray(x)?x:structuredClone(SOURCE);
+  const arr=(Array.isArray(x)&&x.length)?x:structuredClone(SOURCE);
   arr.forEach((g,i)=>{
     if(!Number.isFinite(g.sortOrder))g.sortOrder=i;
     if(!Array.isArray(g.facilities))g.facilities=[];
