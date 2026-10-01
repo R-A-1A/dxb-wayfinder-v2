@@ -1170,7 +1170,7 @@ function adminLogin(){
  <button class="btn primary" onclick="checkAdmin()">Enter Admin</button>
  </div>`;
 }
-async async function checkAdmin(){
+async function checkAdmin(){
  const u=document.getElementById('adminUser').value.trim().toLowerCase();
  const pw=document.getElementById('pw').value;
  const ok=getAdmins().find(a=>a.username.toLowerCase()===u);
