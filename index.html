@@ -1131,18 +1131,18 @@ function getAdmins(){
   try{
     const a=JSON.parse(localStorage.getItem(ADMIN_KEY));
     if(Array.isArray(a)&&a.length){
-      // Migrate the untouched legacy owner username to the Firebase admin username.
-      // The Firebase password is verified by Firebase during sign-in.
-      if(a.length===1 && a[0].id==='owner' && a[0].username==='RAM' && a[0].password==='DXB2026'){
+      // Keep the single owner aligned with the Firebase admin username.
+      // Firebase verifies the password during sign-in.
+      if(a.length===1 && a[0].id==='owner' && ['RAM','admin','ram'].includes(String(a[0].username||''))){
         a[0].name='Admin';
-        a[0].username='admin';
+        a[0].username='ram';
         a[0].role='owner';
         localStorage.setItem(ADMIN_KEY,JSON.stringify(a));
       }
       return a;
     }
   }catch(e){}
-  const initial=[{id:'owner',name:'Admin',username:'admin',password:'',role:'owner'}];
+  const initial=[{id:'owner',name:'Admin',username:'ram',password:'',role:'owner'}];
   localStorage.setItem(ADMIN_KEY,JSON.stringify(initial));
   return initial;
 }
