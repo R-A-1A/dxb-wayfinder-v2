@@ -185,6 +185,11 @@ main{max-width:760px;margin:auto;padding:16px 14px 124px}
 .qr{display:flex;justify-content:center;align-items:center;margin:12px 0 16px;transform:none;rotate:0deg;writing-mode:horizontal-tb}.qr canvas,.qr img{display:block;transform:none;rotate:0deg;aspect-ratio:1 / 1;image-orientation:none}
 .empty{background:#fff;border:1px dashed #C5CCDD;border-radius:14px;padding:24px;text-align:center;color:var(--muted)}
 .form{display:grid;gap:11px}
+.password-wrap{position:relative;margin-top:6px}
+.password-wrap input{margin-top:0;padding-right:88px}
+.password-toggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);border:1px solid var(--line);background:#F8F9FB;color:var(--navy);border-radius:8px;padding:6px 8px;font-size:12px;font-weight:800;display:flex;align-items:center;gap:5px;cursor:pointer}
+.password-toggle:focus{outline:2px solid rgba(255,223,1,.65)}
+.password-state{font-size:10px;color:var(--muted);margin-top:4px}
 label{font-size:13px;font-weight:750;color:#344054}
 label input,label textarea,label select{
   display:block;width:100%;margin-top:6px;border:1px solid var(--line);
@@ -1166,9 +1171,18 @@ function adminLogin(){
  document.getElementById('adminBody').innerHTML=`<div class="form">
  <p class="small">Official access. Enter your username and password once. Your sign-in stays active until this browser tab is closed. Only the current owner can transfer ownership.</p>
  <label>Username<input id="adminUser" autocomplete="username" placeholder="Username"></label>
- <label>Password<input id="pw" type="password" autocomplete="current-password" placeholder="Password"></label>
+ <label>Password<div class="password-wrap"><input id="pw" type="password" autocomplete="current-password" placeholder="Password"><button type="button" class="password-toggle" id="pwToggle" onclick="togglePasswordVisibility('pw','pwToggle','pwState')" aria-label="Show password"><span aria-hidden="true">👁</span><span>Show</span></button></div><div class="password-state" id="pwState">Password hidden</div></label>
  <button class="btn primary" onclick="checkAdmin()">Enter Admin</button>
  </div>`;
+}
+function togglePasswordVisibility(inputId,buttonId,stateId){
+ const input=document.getElementById(inputId),button=document.getElementById(buttonId),state=document.getElementById(stateId);
+ if(!input||!button||!state)return;
+ const visible=input.type==='text';
+ input.type=visible?'password':'text';
+ button.setAttribute('aria-label',visible?'Show password':'Hide password');
+ button.innerHTML=visible?'<span aria-hidden="true">👁</span><span>Show</span>':'<span aria-hidden="true">👁</span><span>Hide</span>';
+ state.textContent=visible?'Password hidden':'Password visible';
 }
 async function checkAdmin(){
  const u=document.getElementById('adminUser').value.trim().toLowerCase();
