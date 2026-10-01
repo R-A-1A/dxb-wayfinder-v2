@@ -1133,16 +1133,16 @@ function getAdmins(){
     if(Array.isArray(a)&&a.length){
       // Keep the single owner aligned with the Firebase admin username.
       // Firebase verifies the password during sign-in.
-      if(a.length===1 && a[0].id==='owner' && ['RAM','admin','ram'].includes(String(a[0].username||''))){
+      if(a.length===1 && a[0].id==='owner' && ['RAM','admin','ram','yadhu'].includes(String(a[0].username||''))){
         a[0].name='Admin';
-        a[0].username='ram';
+        a[0].username='yadhu';
         a[0].role='owner';
         localStorage.setItem(ADMIN_KEY,JSON.stringify(a));
       }
       return a;
     }
   }catch(e){}
-  const initial=[{id:'owner',name:'Admin',username:'ram',password:'',role:'owner'}];
+  const initial=[{id:'owner',name:'Admin',username:'yadhu',password:'',role:'owner'}];
   localStorage.setItem(ADMIN_KEY,JSON.stringify(initial));
   return initial;
 }
