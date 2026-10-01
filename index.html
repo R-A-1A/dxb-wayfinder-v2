@@ -754,7 +754,7 @@ function normalizeLocationOrder(){
  data.sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
  data.forEach((g,i)=>g.sortOrder=i);
 }
-async async function save(){
+async function save(){
  localStorage.setItem(KEY,JSON.stringify(data));
  render();
  if(window.dxbCloudSaveLocations){
@@ -1503,7 +1503,7 @@ function transferOwnership(){
  });
 }
 
-async async function saveGate(id){
+async function saveGate(id){
  if(!window.currentAdmin){alert('Please sign in first.');return false}
  if(!window.dxbCloudSaveLocations || !window.dxbFirebaseAuth?.currentUser){
   alert('Oops… your admin session is not connected to the cloud. Please sign in again.');
