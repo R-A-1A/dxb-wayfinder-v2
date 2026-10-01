@@ -1140,6 +1140,9 @@ function getAdmins(){
   try{
     const a=JSON.parse(localStorage.getItem(ADMIN_KEY));
     if(Array.isArray(a)&&a.length){
+      // Migrate away from any legacy browser-stored passwords.
+      const migrated=a.map(({password,...rest})=>rest);
+      if(JSON.stringify(migrated)!==JSON.stringify(a)) localStorage.setItem(ADMIN_KEY,JSON.stringify(migrated));
       // Keep the single owner aligned with the Firebase admin username.
       // Firebase verifies the password during sign-in.
       if(a.length===1 && a[0].id==='owner' && ['RAM','admin','ram','yadhu'].includes(String(a[0].username||''))){
@@ -1155,19 +1158,39 @@ function getAdmins(){
   localStorage.setItem(ADMIN_KEY,JSON.stringify(initial));
   return initial;
 }
-function saveAdmins(a){localStorage.setItem(ADMIN_KEY,JSON.stringify(a))}
+function saveAdmins(a){
+  // Never persist Firebase passwords in browser storage.
+  const clean=(a||[]).map(({password,...rest})=>rest);
+  localStorage.setItem(ADMIN_KEY,JSON.stringify(clean));
+}
 function restoreAdminSession(){
-  try{const id=sessionStorage.getItem('dxb_wayfinder_admin_session');if(!id)return false;const u=getAdmins().find(a=>a.id===id);if(u){window.currentAdmin=u;return true}sessionStorage.removeItem('dxb_wayfinder_admin_session')}catch(e){}
+  try{
+    const raw=sessionStorage.getItem('dxb_wayfinder_admin_session');if(!raw)return false;
+    const saved=JSON.parse(raw);
+    const authUser=window.dxbFirebaseAuth?.currentUser;
+    if(!authUser||saved.uid!==authUser.uid){sessionStorage.removeItem('dxb_wayfinder_admin_session');return false}
+    const email=String(authUser.email||'').toLowerCase();
+    const allowed=['admin@dxb-wayfinder.local','ram@dxb-wayfinder.local','yadhu@dxb-wayfinder.local'];
+    if(!allowed.includes(email)){sessionStorage.removeItem('dxb_wayfinder_admin_session');return false}
+    const local=getAdmins().find(a=>a.username.toLowerCase()===email.split('@')[0]);
+    window.currentAdmin={...(local||{id:saved.id,name:email.split('@')[0],username:email.split('@')[0],role:saved.role||'admin'}),uid:authUser.uid,email};
+    return true;
+  }catch(e){sessionStorage.removeItem('dxb_wayfinder_admin_session')}
   return false;
 }
-function clearAdminSession(){window.currentAdmin=null;try{sessionStorage.removeItem('dxb_wayfinder_admin_session')}catch(e){}}
-function requireSensitiveAuth(action,callback){
-  if(!window.currentAdmin){alert('Please sign in first.');return false}
-  const pw=prompt('Confirm your current password to continue: '+action);
+function clearAdminSession(){
+  window.currentAdmin=null;
+  try{sessionStorage.removeItem('dxb_wayfinder_admin_session')}catch(e){}
+  window.dxbFirebaseSignOut?.();
+}
+async function requireSensitiveAuth(action,callback){
+  if(!window.currentAdmin||!window.dxbFirebaseAuth?.currentUser){alert('Please sign in first.');return false}
+  const pw=prompt('Confirm your current Firebase password to continue: '+action);
   if(pw===null)return false;
-  const live=getAdmins().find(a=>a.id===window.currentAdmin.id);
-  if(!live||live.password!==pw){alert('Password confirmation failed.');return false}
-  callback();return true;
+  const ok=await window.dxbFirebaseReauth?.(pw);
+  if(!ok){alert('Password confirmation failed.');return false}
+  await callback();
+  return true;
 }
 function getOwner(){return getAdmins().find(a=>a.role==='owner') || getAdmins()[0]}
 function isOwner(){return !!window.currentAdmin && window.currentAdmin.role==='owner'}
@@ -1191,20 +1214,32 @@ function togglePasswordVisibility(inputId,buttonId,stateId){
 async function checkAdmin(){
  const u=document.getElementById('adminUser').value.trim().toLowerCase();
  const pw=document.getElementById('pw').value;
- const ok=getAdmins().find(a=>a.username.toLowerCase()===u);
- if(!ok){alert('Incorrect username or password');return}
- if(window.dxbFirebaseSignIn){
-  const cloudOk=await window.dxbFirebaseSignIn(u,pw);
-  if(!cloudOk){
-   alert('Firebase sign-in failed. Check the admin email/password and Firebase Authentication settings.');
-   return;
-  }
-  // Keep the local session checks compatible with the Firebase password.
-  ok.password=pw;
-  saveAdmins(getAdmins().map(a=>a.id===ok.id?ok:a));
+ if(!u||!pw){alert('Enter username and password.');return}
+ if(!window.dxbFirebaseSignIn){alert('Firebase Authentication is not ready.');return}
+ const cloudOk=await window.dxbFirebaseSignIn(u,pw);
+ if(!cloudOk){
+  alert('Firebase sign-in failed. Check the account username/password.');
+  return;
  }
- window.currentAdmin=ok;
- try{sessionStorage.setItem('dxb_wayfinder_admin_session',ok.id)}catch(e){}
+ const authUser=window.dxbFirebaseAuth?.currentUser;
+ const email=String(authUser?.email||'').toLowerCase();
+ const allowed=['admin@dxb-wayfinder.local','ram@dxb-wayfinder.local','yadhu@dxb-wayfinder.local'];
+ if(!authUser||!allowed.includes(email)||email.split('@')[0]!==u){
+  await window.dxbFirebaseSignOut?.();
+  alert('This Firebase account is not an authorized Wayfinder management account.');
+  return;
+ }
+ const existing=getAdmins().find(a=>a.username.toLowerCase()===u);
+ const ok=existing||{
+  id:'firebase-'+authUser.uid,
+  name:u==='yadhu'?'Admin':u,
+  username:u,
+  role:u==='yadhu'?'owner':'admin'
+ };
+ window.currentAdmin={...ok,password:undefined,uid:authUser.uid,email};
+ try{sessionStorage.setItem('dxb_wayfinder_admin_session',JSON.stringify({
+  id:window.currentAdmin.id,uid:authUser.uid,email,role:window.currentAdmin.role
+ }))}catch(e){}
  showAdmin();
 }
 function audit(action,target){const k='dxb_wayfinder_audit_v1';let l=[];try{l=JSON.parse(localStorage.getItem(k))||[]}catch(e){}l.unshift({at:new Date().toISOString(),by:window.currentAdmin?.username||'unknown',action,target});localStorage.setItem(k,JSON.stringify(l.slice(0,100)))}
@@ -1761,7 +1796,7 @@ window.addEventListener('dxb-cloud-locations-updated',e=>{
 </script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, signOut, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig={
@@ -1786,6 +1821,29 @@ window.dxbFirebaseSignIn=async(username,password)=>{
   return true;
  }catch(e){
   console.error('Firebase sign-in failed',e);
+  return false;
+ }
+};
+window.dxbFirebaseSignOut=()=>signOut(auth).catch(()=>{});
+window.dxbFirebaseReauth=async(password)=>{
+ try{
+  const user=auth.currentUser;
+  if(!user?.email)return false;
+  const credential=EmailAuthProvider.credential(user.email,password);
+  await reauthenticateWithCredential(user,credential);
+  return true;
+ }catch(e){
+  console.error('Firebase re-auth failed',e);
+  return false;
+ }
+};
+window.dxbFirebaseChangePassword=async(password)=>{
+ try{
+  if(!auth.currentUser)return false;
+  await updatePassword(auth.currentUser,password);
+  return true;
+ }catch(e){
+  console.error('Firebase password update failed',e);
   return false;
  }
 };
