@@ -754,14 +754,18 @@ function normalizeLocationOrder(){
  data.sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
  data.forEach((g,i)=>g.sortOrder=i);
 }
-function save(){
+async function save(){
  localStorage.setItem(KEY,JSON.stringify(data));
  render();
  if(window.dxbCloudSaveLocations){
-  window.dxbCloudSaveLocations(data).then(ok=>{
-   if(!ok) console.warn('Cloud location save was not completed.');
-  }).catch(err=>console.error('Cloud location save failed',err));
+  try{
+   return await window.dxbCloudSaveLocations(data);
+  }catch(err){
+   console.error('Cloud location save failed',err);
+   return false;
+  }
  }
+ return true;
 }
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function areaName(a){return a==='A'?'Concourse A':a==='B'?'Concourse B':a==='C'?'Concourse C':a}
@@ -1490,25 +1494,52 @@ function transferOwnership(){
  });
 }
 
-function saveGate(id){
- return requireSensitiveAuth(id?'editing a location':'creating a location',()=>{
-  const editor=document.getElementById('locationEditorOverlay');
-  const prefix=id&&editor?'edit':'a';
-  const name=document.getElementById(prefix+'Name').value.trim(),area=document.getElementById(prefix+'Area').value,url=document.getElementById(prefix+'Url').value.trim();
-  const fac=document.getElementById(prefix+'Fac').value.split(/\n+|\\n+/).map(x=>x.trim()).filter(Boolean);
-  if(!name){alert('Gate/location name is required');return}
-  if(id){const g=data.find(x=>x.id===id);g.name=name;g.area=area;g.pointerUrl=url;const old=g.facilities;g.facilities=fac.map((n,i)=>{const ex=old.find(f=>f.name===n);return ex?{...ex,active:true}:{id:g.id+'-f'+Date.now()+i,name:n,active:true,pointerUrl:''}})}
-  else{const gid=name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now();data.push({id:gid,name,terminal:'Terminal 3',area,facilities:fac.map((n,i)=>({id:gid+'-f'+i,name:n,active:true,pointerUrl:''})),pointerUrl:url,active:true,status:'admin-added',sortOrder:data.length})}
-  normalizeLocationOrder();
-  save();audit(id?'Edited location':'Created location',name);
-  if(id && document.getElementById('locationEditorOverlay')){
-    closeLocationEditor();
-    showAdmin('locations');
-    requestAnimationFrame(()=>{const sheet=document.querySelector('#overlay .sheet');if(sheet)sheet.scrollTop=locationEditorReturnScroll});
-  }else{
-    showAdmin('locations');
-  }
- });
+async function saveGate(id){
+ if(!window.currentAdmin){alert('Please sign in first.');return false}
+ const editor=document.getElementById('locationEditorOverlay');
+ const prefix=id&&editor?'edit':'a';
+ const name=document.getElementById(prefix+'Name')?.value.trim()||'';
+ const area=document.getElementById(prefix+'Area')?.value||'';
+ const url=document.getElementById(prefix+'Url')?.value.trim()||'';
+ const fac=document.getElementById(prefix+'Fac')?.value.split(/\n+|\\n+/).map(x=>x.trim()).filter(Boolean)||[];
+ if(!name){alert('Gate/location name is required');return false}
+
+ const before=structuredClone(data);
+ if(id){
+  const g=data.find(x=>x.id===id);
+  if(!g){alert('Oops… that location could not be found. Please try again.');return false}
+  g.name=name;g.area=area;g.pointerUrl=url;
+  const old=g.facilities||[];
+  g.facilities=fac.map((n,i)=>{
+   const ex=old.find(f=>f.name===n);
+   return ex?{...ex,active:true}:{id:g.id+'-f'+Date.now()+i,name:n,active:true,pointerUrl:''}
+  });
+ }else{
+  const gid=name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now();
+  data.push({id:gid,name,terminal:'Terminal 3',area,facilities:fac.map((n,i)=>({id:gid+'-f'+i,name:n,active:true,pointerUrl:''})),pointerUrl:url,active:true,status:'admin-added',sortOrder:data.length});
+ }
+
+ normalizeLocationOrder();
+ const saved=await save();
+ if(!saved && window.dxbCloudSaveLocations){
+  data=before;
+  localStorage.setItem(KEY,JSON.stringify(data));
+  render();
+  alert('Oops… changes were not saved. Please try again.');
+  return false;
+ }
+
+ audit(id?'Edited location':'Created location',name);
+ const wasEditing=!!id && !!document.getElementById('locationEditorOverlay');
+ if(wasEditing){
+  closeLocationEditor();
+  showAdmin('locations');
+  requestAnimationFrame(()=>{const sheet=document.querySelector('#overlay .sheet');if(sheet)sheet.scrollTop=locationEditorReturnScroll});
+ }else{
+  showAdmin('locations');
+ }
+ alert('Changes updated.');
+ return true;
 }
 function toggleGate(id){
  return requireSensitiveAuth('changing gate activation',()=>{const g=data.find(x=>x.id===id);if(!g)return;g.active=!g.active;save();audit(g.active?'Reactivated gate':'Deactivated gate',g.name);showAdmin('locations')});
