@@ -754,7 +754,7 @@ function normalizeLocationOrder(){
  data.sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0));
  data.forEach((g,i)=>g.sortOrder=i);
 }
-async function save(){
+async async function save(){
  localStorage.setItem(KEY,JSON.stringify(data));
  render();
  if(window.dxbCloudSaveLocations){
@@ -1439,9 +1439,18 @@ function openLocationEditor(id){
   ov.addEventListener('click',e=>{if(e.target===ov)closeLocationEditor()});
 }
 function closeLocationEditor(){
-  document.getElementById('locationEditorOverlay')?.remove();
-  document.body.classList.remove('modal-open');
-  requestAnimationFrame(()=>{const sheet=document.querySelector('#overlay .sheet');if(sheet)sheet.scrollTop=locationEditorReturnScroll});
+ document.getElementById('locationEditorOverlay')?.remove();
+ document.body.classList.remove('modal-open');
+ const pending=window.dxbPendingRemoteLocations;
+ window.dxbPendingRemoteLocations=null;
+ if(Array.isArray(pending)&&pending.length){
+  data=structuredClone(pending);
+  normalizeLocationOrder();
+  localStorage.setItem(KEY,JSON.stringify(data));
+  render();
+  if(document.getElementById('locationActiveList')&&window.dxbRefreshLocationManagement)window.dxbRefreshLocationManagement();
+ }
+ requestAnimationFrame(()=>{const sheet=document.querySelector('#overlay .sheet');if(sheet)sheet.scrollTop=locationEditorReturnScroll});
 }
 function editUser(id){
  const target=getAdmins().find(a=>a.id===id);
@@ -1494,8 +1503,13 @@ function transferOwnership(){
  });
 }
 
-async function saveGate(id){
+async async function saveGate(id){
  if(!window.currentAdmin){alert('Please sign in first.');return false}
+ if(!window.dxbCloudSaveLocations || !window.dxbFirebaseAuth?.currentUser){
+  alert('Oops… your admin session is not connected to the cloud. Please sign in again.');
+  return false;
+ }
+
  const editor=document.getElementById('locationEditorOverlay');
  const prefix=id&&editor?'edit':'a';
  const name=document.getElementById(prefix+'Name')?.value.trim()||'';
@@ -1504,9 +1518,9 @@ async function saveGate(id){
  const fac=document.getElementById(prefix+'Fac')?.value.split(/\n+|\\n+/).map(x=>x.trim()).filter(Boolean)||[];
  if(!name){alert('Gate/location name is required');return false}
 
- const before=structuredClone(data);
+ const nextData=structuredClone(data);
  if(id){
-  const g=data.find(x=>x.id===id);
+  const g=nextData.find(x=>x.id===id);
   if(!g){alert('Oops… that location could not be found. Please try again.');return false}
   g.name=name;g.area=area;g.pointerUrl=url;
   const old=g.facilities||[];
@@ -1516,20 +1530,26 @@ async function saveGate(id){
   });
  }else{
   const gid=name.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'-'+Date.now();
-  data.push({id:gid,name,terminal:'Terminal 3',area,facilities:fac.map((n,i)=>({id:gid+'-f'+i,name:n,active:true,pointerUrl:''})),pointerUrl:url,active:true,status:'admin-added',sortOrder:data.length});
+  nextData.push({id:gid,name,terminal:'Terminal 3',area,facilities:fac.map((n,i)=>({id:gid+'-f'+i,name:n,active:true,pointerUrl:''})),pointerUrl:url,active:true,status:'admin-added',sortOrder:nextData.length});
  }
 
+ const previousData=data;
+ data=nextData;
  normalizeLocationOrder();
- const saved=await save();
- if(!saved && window.dxbCloudSaveLocations){
-  data=before;
-  localStorage.setItem(KEY,JSON.stringify(data));
-  render();
-  alert('Oops… changes were not saved. Please try again.');
+ const candidate=structuredClone(data);
+ data=previousData;
+
+ const saved=await window.dxbCloudSaveLocations(candidate);
+ if(!saved){
+  alert('Oops… Try again');
   return false;
  }
 
+ data=candidate;
+ localStorage.setItem(KEY,JSON.stringify(data));
+ render();
  audit(id?'Edited location':'Created location',name);
+
  const wasEditing=!!id && !!document.getElementById('locationEditorOverlay');
  if(wasEditing){
   closeLocationEditor();
@@ -1538,7 +1558,7 @@ async function saveGate(id){
  }else{
   showAdmin('locations');
  }
- alert('Changes updated.');
+ alert('Changes updated');
  return true;
 }
 function toggleGate(id){
@@ -1719,15 +1739,30 @@ window.addEventListener('dxb-cloud-ready',async()=>{
    localStorage.setItem(KEY,JSON.stringify(data));
    render();
   }
+  window.dxbCloudSubscribeLocations?.();
  }catch(e){console.warn('Cloud location load skipped',e)}
 });
 
-
+window.addEventListener('dxb-cloud-locations-updated',e=>{
+ const remote=e.detail;
+ if(!Array.isArray(remote)||!remote.length)return;
+ if(document.getElementById('locationEditorOverlay')){
+  window.dxbPendingRemoteLocations=structuredClone(remote);
+  return;
+ }
+ data=structuredClone(remote);
+ normalizeLocationOrder();
+ localStorage.setItem(KEY,JSON.stringify(data));
+ render();
+ if(document.getElementById('locationActiveList')&&window.dxbRefreshLocationManagement){
+  window.dxbRefreshLocationManagement();
+ }
+});
 </script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig={
   apiKey:"AIzaSyBdrpHAA1f8u4Y3NcmUJvJ_4k8oa3cWMjs",
@@ -1779,10 +1814,20 @@ window.dxbCloudSaveLocations=async(locations)=>{
   return true;
  }catch(e){
   console.error('Firestore location write failed',e);
-  alert('Cloud save failed. The change is only local until Firebase authorization and Firestore are configured.');
   return false;
  }
 };
+
+window.dxbCloudSubscribeLocations=()=>{
+ if(window.dxbCloudUnsubscribeLocations)return;
+ window.dxbCloudUnsubscribeLocations=onSnapshot(LOCATION_DOC,snap=>{
+  const remote=snap.exists()?snap.data().locations:null;
+  if(Array.isArray(remote)&&remote.length){
+   window.dispatchEvent(new CustomEvent('dxb-cloud-locations-updated',{detail:remote}));
+  }
+ },err=>console.error('Firestore live location listener failed',err));
+};
+
 window.dispatchEvent(new Event('dxb-cloud-ready'));
 </script>
 
