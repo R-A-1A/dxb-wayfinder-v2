@@ -1576,7 +1576,8 @@ async function saveGate(id){
 
  const saved=await window.dxbCloudSaveLocations(candidate);
  if(!saved){
-  alert('Oops… Try again');
+  const code=window.dxbCloudLastSaveError?.code||'unknown';
+  alert('Cloud save failed ('+code+'). Please sign in again and retry.');
   return false;
  }
 
@@ -1860,18 +1861,30 @@ window.dxbCloudGetLocations=async()=>{
 
 window.dxbCloudSaveLocations=async(locations)=>{
  try{
-  if(!auth.currentUser){
+  const user=auth.currentUser;
+  const allowed=['admin@dxb-wayfinder.local','ram@dxb-wayfinder.local','yadhu@dxb-wayfinder.local'];
+  const email=String(user?.email||'').toLowerCase();
+  if(!user){
+   window.dxbCloudLastSaveError={code:'no-auth'};
    console.warn('No Firebase admin session. Cloud save skipped.');
    return false;
   }
+  if(!allowed.includes(email)){
+   window.dxbCloudLastSaveError={code:'unauthorized-email'};
+   console.error('Firestore location write blocked: unauthorized Firebase identity.');
+   return false;
+  }
+  await user.getIdToken(true);
   await setDoc(LOCATION_DOC,{
    locations,
    updatedAt:new Date().toISOString(),
-   updatedBy:auth.currentUser.uid
+   updatedBy:user.uid
   });
+  window.dxbCloudLastSaveError=null;
   return true;
  }catch(e){
-  console.error('Firestore location write failed',e);
+  window.dxbCloudLastSaveError={code:e?.code||e?.name||'unknown'};
+  console.error('Firestore location write failed',e?.code||e?.name||'unknown');
   return false;
  }
 };
