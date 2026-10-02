@@ -1547,10 +1547,10 @@ async function saveGate(id){
 
  const editor=document.getElementById('locationEditorOverlay');
  const prefix=id&&editor?'edit':'a';
- const name=document.getElementById(prefix+'Name')?.value.trim()||'';
- const area=document.getElementById(prefix+'Area')?.value||'';
- const url=document.getElementById(prefix+'Url')?.value.trim()||'';
- const fac=document.getElementById(prefix+'Fac')?.value.split(/\n+|\\n+/).map(x=>x.trim()).filter(Boolean)||[];
+ const name=document.getElementById(prefix+'AName')?.value.trim()||'';
+ const area=document.getElementById(prefix+'AArea')?.value||'';
+ const url=document.getElementById(prefix+'AUrl')?.value.trim()||'';
+ const fac=document.getElementById(prefix+'AFac')?.value.split(/\n+|\\n+/).map(x=>x.trim()).filter(Boolean)||[];
  if(!name){alert('Gate/location name is required');return false}
 
  const nextData=structuredClone(data);
