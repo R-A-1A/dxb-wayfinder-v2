@@ -5,10 +5,10 @@ service cloud.firestore {
     match /wayfinder/locations {
       allow read: if true;
       allow write: if request.auth != null
-        && request.auth.token.email in [
-          'admin@dxb-wayfinder.local',
-          'ram@dxb-wayfinder.local',
-          'yadhu@dxb-wayfinder.local'
+        && request.auth.uid in [
+          'r1cl5JhJvvURCr0nqkbUmUfsjcj1',
+          'bPq70tI5T8ZfwtueCSdJwu2WGrF2',
+          'WL8UxWWVfdgKlwaGmNX2c1Pl2rT2'
         ];
     }
   }
