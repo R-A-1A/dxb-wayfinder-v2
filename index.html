@@ -1862,19 +1862,30 @@ window.dxbCloudGetLocations=async()=>{
 window.dxbCloudSaveLocations=async(locations)=>{
  try{
   const user=auth.currentUser;
-  const allowed=['admin@dxb-wayfinder.local','ram@dxb-wayfinder.local','yadhu@dxb-wayfinder.local'];
+  const allowed={
+   'admin@dxb-wayfinder.local':'r1cl5JhJvvURCr0nqkbUmUfsjcj1',
+   'ram@dxb-wayfinder.local':'bPq70tI5T8ZfwtueCSdJwu2WGrF2',
+   'yadhu@dxb-wayfinder.local':'WL8UxWWVfdgKlwaGmNX2c1Pl2rT2'
+  };
   const email=String(user?.email||'').toLowerCase();
   if(!user){
    window.dxbCloudLastSaveError={code:'no-auth'};
    console.warn('No Firebase admin session. Cloud save skipped.');
    return false;
   }
-  if(!allowed.includes(email)){
+  const expectedUid=allowed[email];
+  if(!expectedUid){
    window.dxbCloudLastSaveError={code:'unauthorized-email'};
    console.error('Firestore location write blocked: unauthorized Firebase identity.');
    return false;
   }
   await user.getIdToken(true);
+  const tokenResult=await user.getIdTokenResult(true);
+  if(user.uid!==expectedUid || tokenResult.claims?.sub!==expectedUid){
+   window.dxbCloudLastSaveError={code:'identity-mismatch'};
+   console.error('Firestore identity mismatch.',{email,uid:user.uid,tokenUid:tokenResult.claims?.sub});
+   return false;
+  }
   await setDoc(LOCATION_DOC,{
    locations,
    updatedAt:new Date().toISOString(),
