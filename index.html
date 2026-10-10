@@ -1817,11 +1817,14 @@ const LOCATION_DOC=doc(db,'wayfinder','locations');
 window.dxbCloudReady=true;
 
 window.dxbFirebaseSignIn=async(username,password)=>{
+ window.dxbFirebaseLastAuthError=null;
  try{
   await signInWithEmailAndPassword(auth,username+'@dxb-wayfinder.local',password);
   return true;
  }catch(e){
-  console.error('Firebase sign-in failed',e);
+  const code=String(e?.code||'auth/unknown');
+  window.dxbFirebaseLastAuthError=code;
+  console.error('Firebase sign-in failed:',code);
   return false;
  }
 };
