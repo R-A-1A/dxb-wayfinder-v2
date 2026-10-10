@@ -1601,7 +1601,17 @@ async function saveGate(id){
  const saved=await window.dxbCloudSaveLocations(candidate);
  if(!saved){
   const code=window.dxbCloudLastSaveError?.code||'unknown';
-  alert('Cloud save failed ('+code+'). Please sign in again and retry.');
+  const messages={
+   'no-auth':'No Firebase user is signed in. Open Admin and sign in with the authorized Firebase account.',
+   'unauthorized-email':'The signed-in Firebase email is not one of the approved management accounts.',
+   'identity-mismatch':'The Firebase UID does not match the approved UID for this management account. Check Firebase Authentication / Users.',
+   'permission-denied':'Firebase rejected the Firestore write. The deployed Firestore rules may not match this signed-in UID, or the rules were not published.',
+   'unavailable':'Firebase is temporarily unreachable. Check the connection and retry.',
+   'auth/user-token-expired':'The Firebase session expired. Sign out of Admin and sign in again.'
+  };
+  const detail=messages[code]||('Firebase could not save the change ('+code+'). Check the browser console for the Firebase error.');
+  console.error('Gate save rejected; local data was not changed.',{code});
+  alert('Cloud save failed ('+code+').\n\n'+detail+'\n\nThe change was not applied.');
   return false;
  }
 
