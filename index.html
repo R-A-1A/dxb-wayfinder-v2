@@ -1061,103 +1061,201 @@ function openAirportCommunity(){
     window.open(playStoreUrl,'_blank','noopener,noreferrer');
   }
 }
-let currentMissingPhotoFile=null;
-const EMERGENCY_CHANNEL='dxb_wayfinder_live_emergency_v2';
-const DXB_AIRPORT={lat:25.2532,lon:55.3657,radiusMeters:4500};
+/* Emergency notification test implementation.
+   Scope: general emergency, police assistance and ambulance only.
+   Cross-device push delivery requires trusted backend functions; client UI alone is not delivery.
+*/
+const EMERGENCY_CHANNEL='dxb_wayfinder_live_emergency_v3';
 let emergencyChannel=null;
-function getAlerts(){try{return JSON.parse(localStorage.getItem('dxb_wayfinder_alerts_v3'))||[]}catch(e){return[]}}
-function saveAlerts(list){localStorage.setItem('dxb_wayfinder_alerts_v3',JSON.stringify(list.slice(0,100)))}
+const EMERGENCY_DEVICE_KEY='dxb_wayfinder_priority_device_v1';
+const EMERGENCY_DEVICE_PREF='dxb_wayfinder_notification_preference_v1';
+const EMERGENCY_MAX_PRIORITY_DEVICES=20;
+const EMERGENCY_TYPES=['Emergency Request','Police Assistance','Ambulance Needed'];
+function getAlerts(){try{return JSON.parse(localStorage.getItem('dxb_wayfinder_alerts_v4'))||[]}catch(e){return[]}}
+function saveAlerts(list){try{localStorage.setItem('dxb_wayfinder_alerts_v4',JSON.stringify(list.slice(0,100)))}catch(e){}}
 function getStaffSuggestions(){try{return JSON.parse(localStorage.getItem('dxb_wayfinder_suggestions_v1'))||[]}catch(e){return[]}}
 function saveStaffSuggestions(list){localStorage.setItem('dxb_wayfinder_suggestions_v1',JSON.stringify(list.slice(0,100)))}
-function notifyLocal(title,body){try{if('Notification' in window&&Notification.permission==='granted')new Notification(title,{body,tag:'dxb-wayfinder-emergency',renotify:true})}catch(e){}}
-function requestNotificationPermission(){try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission().catch(()=>{})}catch(e){}}
-function getActionName(){let n='';try{n=sessionStorage.getItem('dxb_wayfinder_staff_name')||''}catch(e){}if(n)return n;try{n=localStorage.getItem('dxb_wayfinder_staff_name')||''}catch(e){}if(!n){n=prompt('Enter your staff name for the emergency action log:','');if(n&&n.trim()){n=n.trim();try{sessionStorage.setItem('dxb_wayfinder_staff_name',n)}catch(e){}}}return n||'Staff'}
-function haversineMeters(lat1,lon1,lat2,lon2){const R=6371000,toRad=x=>x*Math.PI/180,dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1),a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(a))}
-function canReceiveOperationalAlert(){
-  return new Promise(resolve=>{
-    if(!navigator.geolocation){resolve(false);return}
-    navigator.geolocation.getCurrentPosition(p=>resolve(haversineMeters(p.coords.latitude,p.coords.longitude,DXB_AIRPORT.lat,DXB_AIRPORT.lon)<=DXB_AIRPORT.radiusMeters),()=>resolve(false),{enableHighAccuracy:false,timeout:4500,maximumAge:120000});
-  });
+function readEmergencyDevice(){try{return JSON.parse(localStorage.getItem(EMERGENCY_DEVICE_KEY)||'null')}catch(e){return null}}
+function saveEmergencyDevice(value){try{localStorage.setItem(EMERGENCY_DEVICE_KEY,JSON.stringify(value))}catch(e){}}
+function emergencyPreference(){try{return localStorage.getItem(EMERGENCY_DEVICE_PREF)==='silenced'?'silenced':'active'}catch(e){return 'active'}}
+function setEmergencyPreference(value){try{localStorage.setItem(EMERGENCY_DEVICE_PREF,value==='silenced'?'silenced':'active')}catch(e){}}
+function notifyLocal(title,body,alertId='dxb-wayfinder-emergency'){
+  if(emergencyPreference()==='silenced')return;
+  try{
+    if('Notification' in window&&Notification.permission==='granted'){
+      const opts={body,tag:alertId,renotify:true,data:{url:'./'}};
+      if(navigator.serviceWorker?.controller||'serviceWorker' in navigator){
+        navigator.serviceWorker.ready.then(reg=>reg.showNotification(title,opts)).catch(()=>new Notification(title,opts));
+      }else new Notification(title,opts);
+    }
+  }catch(e){}
 }
-function emergencyMessage(a){const who=a.senderName||'Staff';return `${who} from ${a.gate} needs ${a.type.toLowerCase()}`}
-function emergencyLocationText(a){return `${a.gate} • ${areaName(a.area)}`}
+async function requestNotificationPermission(){
+  if(!('Notification' in window))return false;
+  try{
+    if(Notification.permission==='granted')return true;
+    if(Notification.permission==='denied')return false;
+    return (await Notification.requestPermission())==='granted';
+  }catch(e){return false}
+}
+function getActionName(){
+  let n='';
+  try{n=sessionStorage.getItem('dxb_wayfinder_staff_name')||''}catch(e){}
+  if(n)return n;
+  try{n=localStorage.getItem('dxb_wayfinder_staff_name')||''}catch(e){}
+  if(!n){n=prompt('Enter your staff name for the emergency action log:','');if(n&&n.trim()){n=n.trim();try{sessionStorage.setItem('dxb_wayfinder_staff_name',n)}catch(e){}}}
+  return n||'Staff';
+}
+function emergencyMessage(a){const who=a.senderName||'Staff';return a.type==='Emergency Request'?who+' submitted a general emergency request':who+' requests '+a.type.toLowerCase()}
+function emergencyLocationText(a){return (a.gate? a.gate+' • ':'')+(a.area?areaName(a.area):'Location not specified')}
+function currentPriorityIdentity(){
+  const admin=window.currentAdmin;
+  const authUser=window.dxbFirebaseAuth?.currentUser;
+  if(!admin||!authUser||admin.uid!==authUser.uid)return null;
+  const role=String(admin.role||'').toLowerCase();
+  if(!['owner','admin'].includes(role))return null;
+  return {uid:authUser.uid,email:String(authUser.email||admin.email||'').toLowerCase(),role};
+}
+function priorityDeviceStatus(){
+  const device=readEmergencyDevice();
+  const identity=currentPriorityIdentity();
+  if(!identity)return {eligible:false,device,identity:null,reason:'Sign in with an authorized Owner/Admin account to register this device.'};
+  if(!device||device.uid!==identity.uid)return {eligible:false,device,identity,reason:'This device has not been registered by the Owner.'};
+  if(device.approved!==true)return {eligible:false,device,identity,reason:'This device is awaiting Owner approval.'};
+  return {eligible:true,device,identity,reason:''};
+}
+function emergencySilencePrompt(){
+  const status=priorityDeviceStatus();
+  if(!status.eligible){alert('Only an approved Owner/Admin priority device can change this setting.');return}
+  if(emergencyPreference()==='silenced'){
+    setEmergencyPreference('active');
+    renderEmergencyDeviceSettings();
+    alert('Notifications are active on this device again. This setting does not guarantee delivery if browser permission or connectivity is unavailable.');
+    return;
+  }
+  const offShift=confirm('You are about to silence emergency notifications on this device. Are you currently off shift?\n\nChoose OK to confirm and silence this device only. Other approved devices will remain unaffected.');
+  if(!offShift)return;
+  setEmergencyPreference('silenced');
+  renderEmergencyDeviceSettings();
+}
+function renderEmergencyDeviceSettings(){
+  const box=document.getElementById('emergencyDeviceSettings');
+  if(!box)return;
+  const status=priorityDeviceStatus();
+  const pref=emergencyPreference();
+  const permission=('Notification' in window)?Notification.permission:'unsupported';
+  const d=status.device;
+  box.innerHTML=`<div class="alert-card"><h4>Priority notification device</h4>
+    <div class="small">${status.eligible?'Registered priority device':'Not an approved priority device'}</div>
+    ${d?'<div class="small">Device ID: '+esc(d.deviceId||'pending')+' • '+esc(d.email||'')+'</div>':''}
+    <div class="small">Notification permission: ${esc(permission)} • Preference: <b>${pref==='silenced'?'Silenced':'Active'}</b></div>
+    <div class="small">Priority device cap: ${EMERGENCY_MAX_PRIORITY_DEVICES}. Reopening this page restores the preference to Active only for an approved, signed-in device.</div>
+    ${status.eligible?'<button class="btn secondary" type="button" onclick="emergencySilencePrompt()">'+(pref==='silenced'?'Reactivate notifications':'Silence notifications')+'</button>':''}
+    <button class="btn secondary" type="button" onclick="registerEmergencyDevice()">Register / refresh this device</button>
+    <div class="small" style="margin-top:8px">Registration and cross-device push delivery require the approved server endpoint. Until configured, this test interface does not claim that remote notifications are working.</div>
+  </div>`;
+}
+async function registerEmergencyDevice(){
+  const identity=currentPriorityIdentity();
+  if(!identity){alert('Sign in using an authorized Owner/Admin account first.');return}
+  const permission=await requestNotificationPermission();
+  if(!permission){alert('Notification permission was not granted. You can still view requests in the PWA, but push delivery cannot be enabled on this device.');renderEmergencyDeviceSettings();return}
+  const existing=readEmergencyDevice();
+  const deviceId=existing?.deviceId||('device-'+(crypto?.randomUUID?crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)));
+  const device={deviceId,uid:identity.uid,email:identity.email,role:identity.role,approved:false,registeredAt:existing?.registeredAt||new Date().toISOString(),lastSeenAt:new Date().toISOString(),localRegistrationOnly:true};
+  saveEmergencyDevice(device);
+  renderEmergencyDeviceSettings();
+  alert('A local device registration record was created. It is NOT approved for priority delivery yet. Owner approval and a secure server-side device registry must be configured before cross-device notifications can work.');
+}
 function openAlerts(){
-  clearSelection();let ov=document.getElementById('alertsOverlay');
+  clearSelection();
+  let ov=document.getElementById('alertsOverlay');
   if(!ov){ov=document.createElement('div');ov.id='alertsOverlay';ov.className='overlay utility-overlay';ov.innerHTML='<div class="sheet utility-sheet"><div class="sheetin"><button class="close" type="button" onclick="closeAlerts()">×</button><div id="alertsModal"></div></div></div>';document.body.appendChild(ov)}
-  ov.classList.add('show');document.body.classList.add('modal-open');requestNotificationPermission();renderAlertsPanel();
+  ov.classList.add('show');document.body.classList.add('modal-open');renderAlertsPanel();
 }
 function closeAlerts(){document.getElementById('alertsOverlay')?.classList.remove('show');document.body.classList.remove('modal-open');clearSelection()}
 function renderAlertsPanel(){
-  const box=document.getElementById('alertsModal');if(!box)return;const list=getAlerts();
-  box.innerHTML=`<div class="modalTitle">Emergency Assistance</div><div class="small">A live alert can be stopped by the sender or resolved by the first staff member who responds.</div><div class="emergency-grid">
-    <button class="emergency-tile danger" onclick="showEmergencyLocation('Police Assistance')"><strong>🚨 Police Assistance</strong><span>Choose concourse and gate only.</span></button>
-    <button class="emergency-tile danger" onclick="showEmergencyLocation('Ambulance Needed')"><strong>🚑 Ambulance Needed</strong><span>Choose concourse and gate only.</span></button>
-    <button class="emergency-tile missing" onclick="showMissingPerson()"><strong>🔎 Missing Person</strong><span>Description, name, M/F, age and photo.</span></button>
-  </div>
-  <div class="emergency-stop-row"><button class="btn secondary" onclick="stopLatestEmergency()">■ Stop active emergency</button></div>
-  <div class="alert-card"><h4>Recent emergency messages</h4><div class="emergency-list">${list.length?list.map(a=>`<div class="emergency-list-item"><b>${esc(a.type)} • ${esc(a.gate)} • ${esc(areaName(a.area))}</b><small>${a.name?esc(a.name)+' • ':''}${a.gender?esc(a.gender)+' • ':''}${a.age?esc(a.age)+' years • ':''}${esc(a.details||'No additional details')}<br>${new Date(a.at).toLocaleString()}${a.senderName?' • From: '+esc(a.senderName):''}</small>${a.actions?.length?`<div class="action-log">${a.actions.map(x=>`<span>${esc(x.action.toUpperCase())} • ${esc(x.name)} • ${esc(new Date(x.at).toLocaleTimeString())}${x.gate?' • '+esc(x.gate):''}</span>`).join('')}</div>`:''}${a.type==='Missing Person'&&a.status==='active'&&!a.missingFound?`<div class="missing-found-row"><button class="missing-found-btn" onclick="showMissingFoundForm('${a.id}')">✓ Person Found</button><button class="btn secondary" onclick="stopEmergency('${a.id}')">Stop Alert</button></div><div class="missing-found-note">Update the gate location when found to stop the 30-minute reminder.</div>`:''}</div>`).join(''):'<div class="small">No emergency messages have been recorded.</div>'}</div></div>`;
+  const box=document.getElementById('alertsModal');if(!box)return;
+  const list=getAlerts();
+  box.innerHTML=`<div class="modalTitle">Emergency Assistance</div>
+    <div class="small">Submit a general emergency request, police assistance request or ambulance request. Requests are stored locally in this test build until the secure backend is connected.</div>
+    <div class="emergency-grid">
+      <button class="emergency-tile danger" onclick="showEmergencyLocation('Emergency Request')"><strong>Emergency Request</strong><span>General staff emergency</span></button>
+      <button class="emergency-tile danger" onclick="showEmergencyLocation('Police Assistance')"><strong>Police Assistance</strong><span>Alert authorized Owner/Admin recipients</span></button>
+      <button class="emergency-tile danger" onclick="showEmergencyLocation('Ambulance Needed')"><strong>Ambulance Needed</strong><span>Alert authorized Owner/Admin recipients</span></button>
+    </div>
+    <div id="emergencyDeviceSettings"></div>
+    <div class="emergency-stop-row"><button class="btn secondary" onclick="stopLatestEmergency()">■ Stop latest active emergency</button></div>
+    <div class="alert-card"><h4>Recent emergency messages</h4><div class="emergency-list">${list.length?list.map(a=>'<div class="emergency-list-item"><b>'+esc(a.type)+' • '+esc(a.gate||'Location not specified')+' • '+esc(a.area?areaName(a.area):'')+'</b><small>'+esc(a.details||'No additional details')+'<br>'+esc(new Date(a.at).toLocaleString())+(a.senderName?' • From: '+esc(a.senderName):'')+' • '+esc(a.status||'active')+'</small></div>').join(''):'<div class="small">No emergency messages have been recorded.</div>'}</div></div>`;
+  renderEmergencyDeviceSettings();
 }
 function showEmergencyLocation(type){
+  if(!EMERGENCY_TYPES.includes(type))return;
   const box=document.getElementById('alertsModal');if(!box)return;
-  box.innerHTML=`<div class="modalTitle">${esc(type)}</div><div class="small">Select the concourse first, then the gate. The live alert is sent to eligible staff devices.</div><div class="form"><div class="emergency-location"><label>Concourse<select id="emArea" onchange="refreshEmergencyGates()"><option value="A">Concourse A</option><option value="B">Concourse B</option><option value="C">Concourse C</option><option value="Landside">Departure</option><option value="Arrivals">Arrivals</option></select></label><label>Gate<select id="emGate">${gateOptionsForArea('A')}</select></label></div><button class="btn primary" onclick="saveEmergencyAlert('${esc(type)}')">Send Emergency Message</button><button class="btn secondary" onclick="renderAlertsPanel()">Back</button></div>`;
+  box.innerHTML=`<div class="modalTitle">${esc(type)}</div><div class="small">Select the concourse and gate, or leave location unspecified if not known. This test branch records the request locally; cross-device notifications require backend setup.</div>
+    <div class="form"><div class="emergency-location"><label>Concourse<select id="emArea" onchange="refreshEmergencyGates()"><option value="">Unknown / not applicable</option><option value="A">Concourse A</option><option value="B">Concourse B</option><option value="C">Concourse C</option><option value="Departure">Departure</option><option value="Arrival">Arrival</option></select></label>
+    <label>Gate<select id="emGate"><option value="">Unknown / not applicable</option>${gateOptionsForArea('A')}</select></label></div>
+    <label>Details (optional)<textarea id="emergencyDetails" rows="3" placeholder="Brief information for responders"></textarea></label>
+    <button class="btn primary" onclick="saveEmergencyAlert('${type}')">Submit request</button><button class="btn secondary" onclick="renderAlertsPanel()">Back</button></div>`;
 }
-function refreshEmergencyGates(){const a=document.getElementById('emArea')?.value,g=document.getElementById('emGate');if(g)g.innerHTML=gateOptionsForArea(a)||'<option value="">No active gates</option>'}
-function showMissingPerson(){
-  currentMissingPhotoFile=null;const box=document.getElementById('alertsModal');if(!box)return;
-  box.innerHTML=`<div class="modalTitle">Missing Person</div><div class="small">Add the identifying details. The photo input can open the phone camera where supported.</div><div class="form"><div class="emergency-location"><label>Concourse<select id="missingArea" onchange="refreshMissingGates()"><option value="A">Concourse A</option><option value="B">Concourse B</option><option value="C">Concourse C</option><option value="Landside">Departure</option><option value="Arrivals">Arrivals</option></select></label><label>Gate<select id="missingGate">${gateOptionsForArea('A')}</select></label></div><label>Description<textarea id="missingDetails" placeholder="Clothing, appearance or other useful identifying details"></textarea></label><div class="emergency-location"><label>Name<input id="missingName" placeholder="Person's name"></label><label>M/F<select id="missingGender"><option value="">Select</option><option value="M">M</option><option value="F">F</option></select></label></div><label>Age<input id="missingAge" type="number" min="0" max="120" inputmode="numeric" placeholder="Age"></label><label>Photo upload<input id="missingPhoto" type="file" accept="image/*" capture="environment"></label><img id="missingPhotoPreview" class="missing-photo-preview" alt="Photo preview"><div class="photo-row"><button class="btn secondary" type="button" onclick="shareMissingPhoto()">Share Photo</button><button class="btn primary" type="button" onclick="saveEmergencyAlert('Missing Person')">Send Alert</button></div><button class="btn secondary" type="button" onclick="renderAlertsPanel()">Back</button></div>`;
-  document.getElementById('missingPhoto')?.addEventListener('change',e=>{currentMissingPhotoFile=e.target.files?.[0]||null;const img=document.getElementById('missingPhotoPreview');if(currentMissingPhotoFile&&img){img.src=URL.createObjectURL(currentMissingPhotoFile);img.classList.add('show')}});
+function refreshEmergencyGates(){
+  const area=document.getElementById('emArea')?.value,gate=document.getElementById('emGate');
+  if(!gate)return;
+  gate.innerHTML='<option value="">Unknown / not applicable</option>'+(area?gateOptionsForArea(area):'');
 }
-function refreshMissingGates(){const a=document.getElementById('missingArea')?.value,g=document.getElementById('missingGate');if(g)g.innerHTML=gateOptionsForArea(a)||'<option value="">No active gates</option>'}
-async function shareMissingPhoto(){if(!currentMissingPhotoFile){alert('Take or select a photo first.');return}try{if(navigator.share&&navigator.canShare&&navigator.canShare({files:[currentMissingPhotoFile]})){await navigator.share({title:'Missing Person Photo',files:[currentMissingPhotoFile],text:'Operational missing-person photo'});return}if(navigator.share){await navigator.share({title:'Missing Person Photo',text:'Operational missing-person photo'});return}alert('This phone does not support browser file sharing. Use the approved staff communication channel.')}catch(e){if(e.name!=='AbortError')alert('Photo sharing was unavailable.')}}
 async function saveEmergencyAlert(type){
-  const area=document.getElementById('missingArea')?.value||document.getElementById('emArea')?.value||'';const gate=document.getElementById('missingGate')?.value||document.getElementById('emGate')?.value||'';const name=document.getElementById('missingName')?.value.trim()||'';const gender=document.getElementById('missingGender')?.value||'';const age=document.getElementById('missingAge')?.value.trim()||'';const details=document.getElementById('missingDetails')?.value.trim()||'';
-  if(!gate||!area){alert('Concourse and gate are required.');return}if(type==='Missing Person'&&!name){alert("Person's name is required.");return}if(type==='Missing Person'&&!details){alert('Description is required.');return}
-  const senderName=getActionName();const notifyRoles=['Admin','TL','STL','Owner'];const alertItem={id:'alert-'+Date.now(),type,name,gender,age,gate,area,details,photoName:currentMissingPhotoFile?.name||'',notifyRoles,senderName,at:new Date().toISOString(),status:'active',actions:[],missingFound:false,nextMissingReminder:type==='Missing Person'?Date.now()+1800000:null,reminderTimer:null};
+  if(!EMERGENCY_TYPES.includes(type))return;
+  const area=document.getElementById('emArea')?.value||'';
+  const gate=document.getElementById('emGate')?.value||'';
+  const details=document.getElementById('emergencyDetails')?.value.trim()||'';
+  if(area&&!gate){alert('Choose a gate or set the location to Unknown / not applicable.');return}
+  const senderName=getActionName();
+  const identity=currentPriorityIdentity();
+  const alertItem={id:'alert-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),type,gate,area,details,senderName,submittedByUid:identity?.uid||null,at:new Date().toISOString(),status:'active',actions:[]};
   const list=getAlerts();list.unshift(alertItem);saveAlerts(list);
-  try{if(!emergencyChannel)emergencyChannel=new BroadcastChannel(EMERGENCY_CHANNEL);emergencyChannel.postMessage({kind:'new',alert:alertItem})}catch(e){}
-  notifyLocal('DXB EMERGENCY',emergencyMessage(alertItem));updateEmergencyBanner();renderAlertsPanel();showLiveEmergency(alertItem,true);
+  updateEmergencyBanner();renderAlertsPanel();showLiveEmergency(alertItem,true);
+  if(emergencyChannel){try{emergencyChannel.postMessage({kind:'new',alert:alertItem})}catch(e){}}
+  if(type==='Emergency Request')notifyLocal('DXB Staff Wayfinder',emergencyMessage(alertItem),alertItem.id);
+  alert('Request recorded on this device. Remote notification delivery is not connected yet in this test branch.');
 }
-function updateMissingPersonFound(id){
-  const list=getAlerts(),a=list.find(x=>x.id===id);if(!a||a.type!=='Missing Person')return;
-  const area=document.getElementById('foundMissingArea')?.value||a.area;const gate=document.getElementById('foundMissingGate')?.value||a.gate;
-  if(!gate||!area){alert('Enter the found concourse and gate.');return;}
-  a.area=area;a.gate=gate;a.missingFound=true;a.status='found';a.foundBy=getActionName();a.foundAt=new Date().toISOString();a.actions=Array.isArray(a.actions)?a.actions:[];a.actions.push({action:'found',name:a.foundBy,at:a.foundAt,gate});
-  saveAlerts(list);try{emergencyChannel?.postMessage({kind:'missingFound',alertId:id,area,gate,action:a.actions[a.actions.length-1]})}catch(e){}
-  updateEmergencyBanner();renderAlertsPanel();showLiveEmergency(a,false);
+function updateEmergencyBanner(){
+  const list=getAlerts().filter(a=>a.status==='active'),b=document.getElementById('emergencyBanner'),d=document.getElementById('headerBellDot');
+  if(!b)return;
+  if(!list.length){b.classList.remove('show');b.innerHTML='';d?.classList.remove('on');return}
+  const a=list[0];b.classList.add('show');d?.classList.add('on');b.innerHTML=`<div><b>ALERT: ${esc(emergencyMessage(a))}</b><button onclick="openAlerts()" aria-label="Open emergency message">›</button></div>`;
 }
-function showMissingFoundForm(id){
-  const a=getAlerts().find(x=>x.id===id),box=document.getElementById('alertsModal');if(!a||!box)return;
-  box.innerHTML=`<div class="modalTitle">Missing Person Found</div><div class="small">Update the location where the person was found. This stops the repeating missing-person notification.</div><div class="form"><div class="emergency-location"><label>Concourse<select id="foundMissingArea" onchange="refreshFoundMissingGates()"><option value="A" ${a.area==='A'?'selected':''}>Concourse A</option><option value="B" ${a.area==='B'?'selected':''}>Concourse B</option><option value="C" ${a.area==='C'?'selected':''}>Concourse C</option><option value="Landside" ${a.area==='Landside'?'selected':''}>Landside</option><option value="Arrivals" ${a.area==='Arrivals'?'selected':''}>Arrivals</option></select></label><label>Gate<select id="foundMissingGate">${gateOptionsForArea(a.area||'A')}</select></label></div><button class="btn primary" onclick="updateMissingPersonFound('${a.id}')">Update Found Location</button><button class="btn secondary" onclick="renderAlertsPanel()">Back</button></div>`;
-  setTimeout(()=>{const g=document.getElementById('foundMissingGate');if(g&&a.gate){const opts=[...g.options];const hit=opts.find(o=>o.value===a.gate);if(hit)g.value=a.gate}},0);
-}
-function refreshFoundMissingGates(){const a=document.getElementById('foundMissingArea')?.value,g=document.getElementById('foundMissingGate');if(g)g.innerHTML=gateOptionsForArea(a)||'<option value="">No active gates</option>'}
-function scheduleMissingReminder(a){
-  if(!a||a.type!=='Missing Person'||a.missingFound||a.status!=='active')return;
-  const due=Math.max(0,(a.nextMissingReminder||Date.now()+1800000)-Date.now());
-  setTimeout(()=>{const current=getAlerts().find(x=>x.id===a.id);if(!current||current.missingFound||current.status!=='active')return;notifyLocal('DXB MISSING PERSON',emergencyMessage(current));showLiveEmergency(current,false);current.nextMissingReminder=Date.now()+1800000;saveAlerts(getAlerts().map(x=>x.id===current.id?current:x));scheduleMissingReminder(current)},due);
-}
-function scheduleAllMissingReminders(){getAlerts().filter(a=>a.type==='Missing Person'&&a.status==='active'&&!a.missingFound).forEach(scheduleMissingReminder)}
-function updateEmergencyBanner(){const list=getAlerts().filter(a=>a.status==='active'),b=document.getElementById('emergencyBanner'),d=document.getElementById('headerBellDot');if(!b)return;if(!list.length){b.classList.remove('show');b.innerHTML='';d?.classList.remove('on');return}const a=list[0];b.classList.add('show');d?.classList.add('on');b.innerHTML=`<div><b>🚨 ${esc(emergencyMessage(a))}</b><button onclick="openAlerts()" aria-label="Open emergency message">›</button></div>`}
-function closeEmergencyBanner(){document.getElementById('emergencyBanner')?.classList.remove('show')}
 function recordEmergencyAction(id,action){
-  const list=getAlerts(),a=list.find(x=>x.id===id);if(!a||a.status!=='active')return;document.querySelectorAll('#liveEmergencyOverlay .emergency-live-actions button').forEach(b=>{b.disabled=true;b.style.pointerEvents='none'});const name=getActionName();a.status=action==='help'?'claimed':'ignored';a.actions=Array.isArray(a.actions)?a.actions:[];a.actions.push({action:action==='help'?'help':'ignore',name,at:new Date().toISOString()});a.resolvedBy=name;a.resolvedAt=new Date().toISOString();saveAlerts(list);try{emergencyChannel?.postMessage({kind:'action',alertId:id,action:a.actions[a.actions.length-1]})}catch(e){}updateEmergencyBanner();renderAlertsPanel();showLiveEmergency(a,false);}
-function stopEmergency(id,by){const list=getAlerts(),a=list.find(x=>x.id===id);if(!a)return;a.status='stopped';a.stoppedBy=by||getActionName();a.stoppedAt=new Date().toISOString();saveAlerts(list);try{emergencyChannel?.postMessage({kind:'stop',alertId:id,by:a.stoppedBy})}catch(e){}updateEmergencyBanner();renderAlertsPanel();closeLiveEmergency()}
-function stopLatestEmergency(){const a=getAlerts().find(x=>x.status==='active');if(!a){alert('No active emergency message.');return}stopEmergency(a.id)}
+  const list=getAlerts(),a=list.find(x=>x.id===id);if(!a||a.status!=='active')return;
+  const name=getActionName();a.status=action==='help'?'claimed':'ignored';
+  a.actions=Array.isArray(a.actions)?a.actions:[];a.actions.push({action,name,at:new Date().toISOString()});
+  a.resolvedBy=name;a.resolvedAt=new Date().toISOString();saveAlerts(list);updateEmergencyBanner();renderAlertsPanel();showLiveEmergency(a,false);
+}
+function stopEmergency(id,by){
+  const list=getAlerts(),a=list.find(x=>x.id===id);if(!a)return;
+  a.status='stopped';a.stoppedBy=by||getActionName();a.stoppedAt=new Date().toISOString();
+  saveAlerts(list);updateEmergencyBanner();renderAlertsPanel();closeLiveEmergency();
+}
+function stopLatestEmergency(){const a=getAlerts().find(x=>x.status==='active');if(!a){alert('No active emergency request.');return}stopEmergency(a.id)}
 function closeLiveEmergency(){document.getElementById('liveEmergencyOverlay')?.remove();document.body.classList.remove('modal-open')}
 function showLiveEmergency(a,own){
-  if(!a)return;let ov=document.getElementById('liveEmergencyOverlay');if(ov)ov.remove();
-  if(a.status!=='active'){
-    const status=a.status==='claimed'?'HELP ON THE WAY.':a.status==='ignored'?`Ignored by ${a.resolvedBy||'Staff'}`:a.status==='found'?`PERSON FOUND AT ${a.gate} • ${areaName(a.area)}`:'Emergency stopped.';
-    ov=document.createElement('div');ov.id='liveEmergencyOverlay';ov.className='emergency-live-overlay';ov.innerHTML=`<div class="emergency-live-card"><div class="emergency-live-head"><span class="emergency-live-siren">🚨</span><b>DXB STAFF ALERT</b></div><div class="emergency-live-body"><div class="emergency-live-message">${esc(emergencyMessage(a))}</div><div class="emergency-live-meta">${esc(emergencyLocationText(a))}</div><div class="emergency-live-result">${esc(status)}<small>${a.resolvedBy?'Action by '+esc(a.resolvedBy):a.stoppedBy?'Stopped by '+esc(a.stoppedBy):''}</small></div></div></div>`;document.body.appendChild(ov);document.body.classList.add('modal-open');setTimeout(closeLiveEmergency,2800);return;
-  }
-  ov=document.createElement('div');ov.id='liveEmergencyOverlay';ov.className='emergency-live-overlay';ov.innerHTML=`<div class="emergency-live-card"><div class="emergency-live-head"><span class="emergency-live-siren">🚨</span><b>EMERGENCY ASSISTANCE</b></div><div class="emergency-live-body"><div class="emergency-live-message">${esc(emergencyMessage(a))}</div><div class="emergency-live-meta">${esc(emergencyLocationText(a))}${a.senderName?' • '+esc(a.senderName):''}</div><div class="emergency-live-actions"><button class="emergency-help" onclick="recordEmergencyAction('${a.id}','help')">HELP</button><button class="emergency-ignore" onclick="recordEmergencyAction('${a.id}','ignore')">IGNORE</button></div>${a.type==='Missing Person'?`<button class="missing-found-btn" style="width:100%;margin-top:10px" onclick="showAlertsThenMissingFound('${a.id}')">✓ PERSON FOUND / UPDATE LOCATION</button>`:''}<button class="emergency-live-stop" onclick="stopEmergency('${a.id}')">■ STOP EMERGENCY</button></div></div>`;
+  if(!a)return;
+  let ov=document.getElementById('liveEmergencyOverlay');if(ov)ov.remove();
+  if(a.status!=='active'){return}
+  ov=document.createElement('div');ov.id='liveEmergencyOverlay';ov.className='emergency-live-overlay';
+  ov.innerHTML=`<div class="emergency-live-card"><div class="emergency-live-head"><span class="emergency-live-siren">🚨</span><b>EMERGENCY ASSISTANCE</b></div><div class="emergency-live-body"><div class="emergency-live-message">${esc(emergencyMessage(a))}</div><div class="emergency-live-meta">${esc(emergencyLocationText(a))}${a.senderName?' • '+esc(a.senderName):''}</div><div class="emergency-live-actions"><button class="emergency-help" onclick="recordEmergencyAction('${a.id}','help')">HELP</button><button class="emergency-ignore" onclick="recordEmergencyAction('${a.id}','ignore')">IGNORE</button></div><button class="emergency-live-stop" onclick="stopEmergency('${a.id}')">■ STOP EMERGENCY</button></div></div>`;
   document.body.appendChild(ov);document.body.classList.add('modal-open');
-  if(a.type==='Missing Person'){setTimeout(()=>{if(document.getElementById('liveEmergencyOverlay')===ov)closeLiveEmergency()},3000)}
 }
-function showAlertsThenMissingFound(id){closeLiveEmergency();openAlerts();setTimeout(()=>showMissingFoundForm(id),30)}
-function initEmergencyChannel(){try{emergencyChannel=new BroadcastChannel(EMERGENCY_CHANNEL);emergencyChannel.onmessage=async e=>{const m=e.data||{};if(m.kind==='new'&&m.alert){const eligible=await canReceiveOperationalAlert();if(eligible){const list=getAlerts();if(!list.some(x=>x.id===m.alert.id)){list.unshift(m.alert);saveAlerts(list)}notifyLocal('DXB EMERGENCY',emergencyMessage(m.alert));showLiveEmergency(m.alert,false);updateEmergencyBanner()}}else if(m.kind==='action'){const list=getAlerts(),a=list.find(x=>x.id===m.alertId);if(a){a.status=m.action.action==='help'?'claimed':'ignored';a.actions=[...(a.actions||[]),m.action];a.resolvedBy=m.action.name;a.resolvedAt=m.action.at;saveAlerts(list);updateEmergencyBanner();if(document.getElementById('liveEmergencyOverlay'))showLiveEmergency(a,false)}}else if(m.kind==='stop'){const list=getAlerts(),a=list.find(x=>x.id===m.alertId);if(a){a.status='stopped';a.stoppedBy=m.by;saveAlerts(list);updateEmergencyBanner();closeLiveEmergency()}}else if(m.kind==='missingFound'){const list=getAlerts(),a=list.find(x=>x.id===m.alertId);if(a){a.status='found';a.missingFound=true;a.area=m.area;a.gate=m.gate;a.foundBy=m.action?.name||'Staff';a.foundAt=m.action?.at||new Date().toISOString();a.actions=[...(a.actions||[]),m.action].filter(Boolean);saveAlerts(list);updateEmergencyBanner();showLiveEmergency(a,false)}}};}catch(e){}}
+function initEmergencyChannel(){
+  try{emergencyChannel=new BroadcastChannel(EMERGENCY_CHANNEL);emergencyChannel.onmessage=e=>{
+    const m=e.data||{};
+    if(m.kind==='new'&&m.alert&&EMERGENCY_TYPES.includes(m.alert.type)){
+      const list=getAlerts();if(!list.some(x=>x.id===m.alert.id)){list.unshift(m.alert);saveAlerts(list)}
+      if(m.alert.type!=='Emergency Request'&&priorityDeviceStatus().eligible&&emergencyPreference()==='active')notifyLocal('DXB EMERGENCY',emergencyMessage(m.alert),m.alert.id);
+      updateEmergencyBanner();if(document.getElementById('alertsOverlay')?.classList.contains('show'))renderAlertsPanel();
+    }
+  }}catch(e){}
+}
 initEmergencyChannel();
-scheduleAllMissingReminders();
 const ADMIN_KEY='dxb_wayfinder_admins_v2';
 function getAdmins(){
   try{
@@ -1804,6 +1902,8 @@ function applyStaffLocation(){
 document.getElementById('utilityOverlay')?.addEventListener('click',e=>{if(e.target.id==='utilityOverlay')closeUtilityOverlay()});
 document.getElementById('alertsOverlay')?.addEventListener('click',e=>{if(e.target.id==='alertsOverlay')closeAlerts()});
 
+
+window.addEventListener('pageshow',()=>{const d=readEmergencyDevice();const identity=currentPriorityIdentity();if(d&&identity&&d.uid===identity.uid&&d.approved===true){setEmergencyPreference('active');d.lastSeenAt=new Date().toISOString();saveEmergencyDevice(d)}});
 render();
 updateEmergencyBanner();
 try{restoreAdminSession()}catch(e){}
