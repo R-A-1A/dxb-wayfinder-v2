@@ -1,4 +1,4 @@
-[Reading 1000 lines from start (total: 1929 lines, 929 remaining)]
+[Reading 1000 lines from start (total: 1927 lines, 927 remaining)]
 
 <!doctype html>
 <html lang="en">
@@ -603,7 +603,7 @@ body.modal-open .selected,body.utility-open .selected{display:none!important}
       <div class="startup-person" aria-hidden="true">
         <svg viewBox="0 0 64 64"><circle cx="32" cy="17" r="9"/><path d="M15 57c1-14 8-22 17-22s16 8 17 22"/></svg>
       </div>
-      <div class="startup-plane" aria-hidden="true">âœˆ</div>
+      <div class="startup-plane" aria-hidden="true">✈</div>
     </div>
   </div>
 </div>
@@ -626,42 +626,42 @@ body.modal-open .selected,body.utility-open .selected{display:none!important}
       <div class="utility-kicker">DXB STAFF TOOLS</div>
       <div class="utility-title">Quick access</div>
     </div>
-    <button id="menuClose" class="utility-close" aria-label="Close menu">Ã—</button>
+    <button id="menuClose" class="utility-close" aria-label="Close menu">×</button>
   </div>
   <button class="utility-option" id="airportCommunityOption">
-    <span class="utility-icon">âœˆ</span><span><b>Airport Community App</b><small>Open in Google Play</small></span><strong>â†—</strong>
+    <span class="utility-icon">✈</span><span><b>Airport Community App</b><small>Open in Google Play</small></span><strong>↗</strong>
   </button>
   <button class="utility-option" id="expressMapOption">
-    <span class="utility-icon">âŒ–</span><span><b>Express Map</b><small>QR + Open Map</small></span><strong>â€º</strong>
+    <span class="utility-icon">⌖</span><span><b>Express Map</b><small>QR + Open Map</small></span><strong>›</strong>
   </button>
   <button class="utility-option" id="pocketFlightOption">
-    <span class="utility-icon">â–£</span><span><b>Pocket Flight</b><small>QR + Open Pocket Flight</small></span><strong>â€º</strong>
+    <span class="utility-icon">▣</span><span><b>Pocket Flight</b><small>QR + Open Pocket Flight</small></span><strong>›</strong>
   </button>
   <button class="utility-option" id="staffLocationOption">
-    <span class="utility-icon">âŒ–</span><span><b>Staff Location</b><small>Choose concourse and gate</small></span><strong>â€º</strong>
+    <span class="utility-icon">⌖</span><span><b>Staff Location</b><small>Choose concourse and gate</small></span><strong>›</strong>
   </button>
 <button class="utility-option official" id="officialControlsOption">
-    <span class="utility-icon">â™›</span><span><b>Official Controls</b><small>Admin, account and security</small></span><strong>â€º</strong>
+    <span class="utility-icon">♛</span><span><b>Official Controls</b><small>Admin, account and security</small></span><strong>›</strong>
   </button>
   <button class="utility-option" id="staffSuggestionsOption">
-    <span class="utility-icon">âœ¦</span><span><b>Staff Suggestions</b><small>Send an improvement idea</small></span><strong>â€º</strong>
+    <span class="utility-icon">✦</span><span><b>Staff Suggestions</b><small>Send an improvement idea</small></span><strong>›</strong>
   </button>
     <button class="utility-option install-option" id="installAppOption" type="button" hidden>
-    <span class="utility-icon">ï¼‹</span><span><b>Add to Home Screen</b><small>Install DXB Wayfinder as an app</small></span><strong>â€º</strong>
+    <span class="utility-icon">＋</span><span><b>Add to Home Screen</b><small>Install DXB Wayfinder as an app</small></span><strong>›</strong>
   </button>
-  <div class="utility-foot">Staff use only â€¢ DXB Wayfinder<br><a href="mailto:yadhukrishnan1998born@gmail.com" class="ram-credit">Â©RAM</a></div>
+  <div class="utility-foot">Staff use only • DXB Wayfinder<br><a href="mailto:yadhukrishnan1998born@gmail.com" class="ram-credit">©RAM</a></div>
 </aside>
 
 <header>
   <div class="head">
-    <div class="headbrand"><div class="headcopy"><div class="brand">Dubai International Airport</div><div class="title">DXB Staff Wayfinder</div><div class="sub">Terminal 3 â€¢ Staff search & passenger handoff</div></div></div>
+    <div class="headbrand"><div class="headcopy"><div class="brand">Dubai International Airport</div><div class="title">DXB Staff Wayfinder</div><div class="sub">Terminal 3 • Staff search & passenger handoff</div></div></div>
     <button id="headerBell" class="header-bell" type="button" aria-label="Emergency notifications" onclick="openAlerts()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="headerBellDot"></span></button>
   </div>
 </header>
 <div id="emergencyBanner" class="emergency-banner" aria-live="polite"></div>
 
 <main>
-  <div class="searchbox" id="searchBox"><span>âŒ•</span><input id="search" placeholder="Search gate, facility or locationâ€¦" autocomplete="off"></div>
+  <div class="searchbox" id="searchBox"><span>⌕</span><input id="search" placeholder="Search gate, facility or location…" autocomplete="off"></div>
   <div class="chips filter-row-primary" id="chips">
   <button class="chip active" data-f="ALL">All</button>
   <button class="chip" data-f="A">Concourse A</button>
@@ -672,24 +672,24 @@ body.modal-open .selected,body.utility-open .selected{display:none!important}
 </div>
 <div class="chips filter-row-facilities" id="facilityChips">
   <button class="chip active" data-facility="ALL">All</button>
-  <button class="chip" data-facility="Toilet">ðŸš» Toilet</button>
-  <button class="chip" data-facility="ATM">ðŸ§ ATM</button>
-  <button class="chip" data-facility="Smoking Room">ðŸš¬ Smoking</button>
-  <button class="chip" data-facility="Lounge">ðŸ›ï¸ Lounge</button>
-  <button class="chip" data-facility="Bar">ðŸ¹ Bar</button>
-  <button class="chip" data-facility="Shopping">ðŸ›ï¸ Shopping</button>
-  <button class="chip" data-facility="Dining">ðŸ½ï¸ Dining</button>
-  <button class="chip" data-facility="Water Fountain">ðŸš° Water Fountain</button>
-  <button class="chip" data-facility="Hot Water Dispenser">â™¨ï¸ Hot Water</button>
-  <button class="chip" data-facility="Shower">ðŸš¿ Shower</button>
-  <button class="chip" data-facility="Elevator">ðŸ›— Elevator</button>
-  <button class="chip" data-facility="Pharmacy">ðŸ’Š Pharmacy</button>
-  <button class="chip" data-facility="Prayer Room">ðŸ•Œ Prayer Room</button>
+  <button class="chip" data-facility="Toilet">🚻 Toilet</button>
+  <button class="chip" data-facility="ATM">🏧 ATM</button>
+  <button class="chip" data-facility="Smoking Room">🚬 Smoking</button>
+  <button class="chip" data-facility="Lounge">🛏️ Lounge</button>
+  <button class="chip" data-facility="Bar">🍹 Bar</button>
+  <button class="chip" data-facility="Shopping">🛍️ Shopping</button>
+  <button class="chip" data-facility="Dining">🍽️ Dining</button>
+  <button class="chip" data-facility="Water Fountain">🚰 Water Fountain</button>
+  <button class="chip" data-facility="Hot Water Dispenser">♨️ Hot Water</button>
+  <button class="chip" data-facility="Shower">🚿 Shower</button>
+  <button class="chip" data-facility="Elevator">🛗 Elevator</button>
+  <button class="chip" data-facility="Pharmacy">💊 Pharmacy</button>
+  <button class="chip" data-facility="Prayer Room">🕌 Prayer Room</button>
 </div>
 <div class="chips filter-row-baby" id="babyRoomChips">
-  <button class="chip baby-filter" data-facility="Baby Room">ðŸš¼ Baby Room</button>
+  <button class="chip baby-filter" data-facility="Baby Room">🚼 Baby Room</button>
 </div>
-  <div class="sectionbar"><span id="count">Locations</span><span>DXB â€¢ Terminal 3</span></div>
+  <div class="sectionbar"><span id="count">Locations</span><span>DXB • Terminal 3</span></div>
   <div id="results"></div>
   <div class="notice">Select a gate or facility to show Nearby with AI and Passenger QR. Both use the same destination-specific AI request.</div>
 </main>
@@ -697,7 +697,7 @@ body.modal-open .selected,body.utility-open .selected{display:none!important}
 <!-- Utility screens -->
 <div id="utilityOverlay" class="overlay utility-overlay">
   <div class="sheet utility-sheet"><div class="sheetin">
-    <button class="close" onclick="closeUtilityOverlay()">Ã—</button>
+    <button class="close" onclick="closeUtilityOverlay()">×</button>
     <div id="utilityModal"></div>
   </div></div>
 </div>
@@ -714,15 +714,15 @@ body.modal-open .selected,body.utility-open .selected{display:none!important}
     <div class="selname" id="selName"></div>
     <div class="selmeta" id="selMeta"></div>
     <div class="actions">
-      <button class="btn secondary" id="aiBtn" onclick="openAI()">âœ¦ Nearby with AI</button>
-      <button class="btn secondary" id="qrBtn" onclick="showQR()">â–£ Passenger QR</button>
+      <button class="btn secondary" id="aiBtn" onclick="openAI()">✦ Nearby with AI</button>
+      <button class="btn secondary" id="qrBtn" onclick="showQR()">▣ Passenger QR</button>
     </div>
   </div>
 </div>
 
 <div id="overlay" class="overlay">
   <div class="sheet"><div class="sheetin">
-    <button class="close" onclick="closeOverlay()">Ã—</button>
+    <button class="close" onclick="closeOverlay()">×</button>
     <div id="modal"></div>
   </div></div>
 </div>
@@ -836,9 +836,9 @@ function render(){
    const facilities=x.facilities.filter(f=>f.active && (facilityFilter==='ALL'||facilityMatches(f.name,facilityFilter,f.category))).map((f,i)=>({f,i,score:q?searchScore(q,f.name):0}))
      .sort((a,b)=>b.score-a.score || a.i-b.i).map(o=>o.f);
    return `<article class="card">
-  <div class="cardhead"><div><div class="gate">${esc(x.name)}</div><div class="meta">Terminal 3 â€¢ ${esc(areaName(x.area))}</div></div><span class="badge">GATE / LOCATION</span></div>
-  <div class="fac"><button class="facility" onclick="selectDest('${x.id}','__gate')">ðŸ“ <b>${esc(x.name)}</b> <small>â€” select gate</small></button>
-  ${facilities.map(f=>`<button class="facility" onclick="selectDest('${x.id}','${f.id}')">â€¢ ${esc(f.name)}</button>`).join('')}</div>
+  <div class="cardhead"><div><div class="gate">${esc(x.name)}</div><div class="meta">Terminal 3 • ${esc(areaName(x.area))}</div></div><span class="badge">GATE / LOCATION</span></div>
+  <div class="fac"><button class="facility" onclick="selectDest('${x.id}','__gate')">📍 <b>${esc(x.name)}</b> <small>— select gate</small></button>
+  ${facilities.map(f=>`<button class="facility" onclick="selectDest('${x.id}','${f.id}')">• ${esc(f.name)}</button>`).join('')}</div>
  </article>`;
  }).join('');
 }
@@ -849,7 +849,7 @@ function selectDest(gid,fid){
  selected={g,f};
  document.getElementById('selected').style.display='block';
  document.getElementById('selName').textContent=f?f.name:g.name;
- document.getElementById('selMeta').textContent=f?`${g.name} â€¢ Terminal 3 â€¢ ${areaName(g.area)}`:`Terminal 3 â€¢ ${areaName(g.area)}`;
+ document.getElementById('selMeta').textContent=f?`${g.name} • Terminal 3 • ${areaName(g.area)}`:`Terminal 3 • ${areaName(g.area)}`;
  document.getElementById('aiBtn').classList.remove('disabled');
  document.getElementById('qrBtn').classList.remove('disabled');
 }
