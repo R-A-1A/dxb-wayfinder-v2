@@ -1218,7 +1218,8 @@ async function checkAdmin(){
  if(!window.dxbFirebaseSignIn){alert('Firebase Authentication is not ready.');return}
  const cloudOk=await window.dxbFirebaseSignIn(u,pw);
  if(!cloudOk){
-  alert('Firebase sign-in failed. Check the account username/password.');
+  const code=String(window.dxbFirebaseLastAuthError||'auth/unknown');
+  alert('Firebase sign-in failed ('+code+'). Check the account details and Firebase user status.');
   return;
  }
  const authUser=window.dxbFirebaseAuth?.currentUser;
